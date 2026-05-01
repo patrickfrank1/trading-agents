@@ -1012,6 +1012,7 @@ def run_analysis(
     auto_save: bool = False,
     save_path: Path = None,
     display_report: bool = False,
+    refresh_rate: float = 1.0,
 ):
     selections = get_user_selections(prefill=prefill, non_interactive=non_interactive)
 
@@ -1102,7 +1103,7 @@ def run_analysis(
     # Now start the display layout
     layout = create_layout()
 
-    with Live(layout, refresh_per_second=4) as live:
+    with Live(layout, refresh_per_second=refresh_rate) as live:
         # Initial display
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
@@ -1375,6 +1376,11 @@ def analyze(
         "--display-report",
         help="Display full report on screen after analysis.",
     ),
+    refresh_rate: float = typer.Option(
+        1.0,
+        "--refresh-rate",
+        help="Terminal display refresh rate in Hz (times per second).",
+    ),
     non_interactive: bool = typer.Option(
         False,
         "--non-interactive",
@@ -1426,6 +1432,7 @@ def analyze(
         auto_save=save or non_interactive,
         save_path=Path(save_path) if save_path else None,
         display_report=display_report,
+        refresh_rate=refresh_rate,
     )
 
 
