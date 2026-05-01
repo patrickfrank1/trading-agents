@@ -358,3 +358,40 @@ def ask_output_language() -> str:
         ).ask().strip()
 
     return choice
+
+
+PROVIDER_URLS = {
+    "openai": "https://api.openai.com/v1",
+    "google": None,
+    "anthropic": "https://api.anthropic.com/",
+    "xai": "https://api.x.ai/v1",
+    "deepseek": "https://api.deepseek.com",
+    "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "glm": "https://open.bigmodel.cn/api/paas/v4/",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "azure": None,
+    "ollama": "http://localhost:11434/v1",
+}
+
+RESEARCH_DEPTH_MAP = {"shallow": 1, "medium": 3, "deep": 5}
+
+
+def get_provider_url(provider_key: str) -> str | None:
+    return PROVIDER_URLS.get(provider_key.lower())
+
+
+def get_default_model(provider: str, mode: str) -> str:
+    try:
+        options = get_model_options(provider, mode)
+    except KeyError:
+        raise ValueError(
+            f"No predefined models for provider '{provider}'. "
+            f"Use --shallow-model and/or --deep-model to specify."
+        )
+    real = [(d, v) for d, v in options if v != "custom"]
+    if not real:
+        raise ValueError(
+            f"No predefined models for provider '{provider}' ({mode}). "
+            f"Use --shallow-model and/or --deep-model to specify."
+        )
+    return real[0][1]

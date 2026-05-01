@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 import datetime
 import typer
 from pathlib import Path
@@ -460,38 +460,39 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
     layout["footer"].update(Panel(stats_table, border_style="grey50"))
 
 
-def get_user_selections():
+def get_user_selections(prefill=None, non_interactive=False):
     """Get all user selections before starting the analysis display."""
-    # Display ASCII art welcome message
-    with open(Path(__file__).parent / "static" / "welcome.txt", "r", encoding="utf-8") as f:
-        welcome_ascii = f.read()
+    prefill = prefill or {}
 
-    # Create welcome box content
-    welcome_content = f"{welcome_ascii}\n"
-    welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
-    welcome_content += "[bold]Workflow Steps:[/bold]\n"
-    welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
-    welcome_content += (
-        "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
-    )
+    def has(key):
+        return key in prefill and prefill[key] is not None
 
-    # Create and center the welcome box
-    welcome_box = Panel(
-        welcome_content,
-        border_style="green",
-        padding=(1, 2),
-        title="Welcome to TradingAgents",
-        subtitle="Multi-Agents LLM Financial Trading Framework",
-    )
-    console.print(Align.center(welcome_box))
-    console.print()
-    console.print()  # Add vertical space before announcements
+    if not non_interactive:
+        with open(Path(__file__).parent / "static" / "welcome.txt", "r", encoding="utf-8") as f:
+            welcome_ascii = f.read()
 
-    # Fetch and display announcements (silent on failure)
-    announcements = fetch_announcements()
-    display_announcements(console, announcements)
+        welcome_content = f"{welcome_ascii}\n"
+        welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
+        welcome_content += "[bold]Workflow Steps:[/bold]\n"
+        welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
+        welcome_content += (
+            "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
+        )
 
-    # Create a boxed questionnaire for each step
+        welcome_box = Panel(
+            welcome_content,
+            border_style="green",
+            padding=(1, 2),
+            title="Welcome to TradingAgents",
+            subtitle="Multi-Agents LLM Financial Trading Framework",
+        )
+        console.print(Align.center(welcome_box))
+        console.print()
+        console.print()
+
+        announcements = fetch_announcements()
+        display_announcements(console, announcements)
+
     def create_question_box(title, prompt, default=None):
         box_content = f"[bold]{title}[/bold]\n"
         box_content += f"[dim]{prompt}[/dim]"
@@ -500,70 +501,120 @@ def get_user_selections():
         return Panel(box_content, border_style="blue", padding=(1, 2))
 
     # Step 1: Ticker symbol
-    console.print(
-        create_question_box(
-            "Step 1: Ticker Symbol",
-            "Enter the exact ticker symbol to analyze, including exchange suffix when needed (examples: SPY, CNC.TO, 7203.T, 0700.HK)",
-            "SPY",
+    if not non_interactive and not has("ticker"):
+        console.print(
+            create_question_box(
+                "Step 1: Ticker Symbol",
+                "Enter the exact ticker symbol to analyze, including exchange suffix when needed (examples: SPY, CNC.TO, 7203.T, 0700.HK)",
+                "SPY",
+            )
         )
-    )
-    selected_ticker = get_ticker()
+    if has("ticker"):
+        selected_ticker = normalize_ticker_symbol(prefill["ticker"])
+    elif non_interactive:
+        selected_ticker = "SPY"
+    else:
+        selected_ticker = get_ticker()
 
     # Step 2: Analysis date
-    default_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    console.print(
-        create_question_box(
-            "Step 2: Analysis Date",
-            "Enter the analysis date (YYYY-MM-DD)",
-            default_date,
+    if not non_interactive and not has("analysis_date"):
+        default_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        console.print(
+            create_question_box(
+                "Step 2: Analysis Date",
+                "Enter the analysis date (YYYY-MM-DD)",
+                default_date,
+            )
         )
-    )
-    analysis_date = get_analysis_date()
+    if has("analysis_date"):
+        analysis_date = prefill["analysis_date"]
+    elif non_interactive:
+        analysis_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    else:
+        analysis_date = get_analysis_date()
 
     # Step 3: Output language
-    console.print(
-        create_question_box(
-            "Step 3: Output Language",
-            "Select the language for analyst reports and final decision"
+    if not non_interactive and not has("output_language"):
+        console.print(
+            create_question_box(
+                "Step 3: Output Language",
+                "Select the language for analyst reports and final decision"
+            )
         )
-    )
-    output_language = ask_output_language()
+    if has("output_language"):
+        output_language = prefill["output_language"]
+    elif non_interactive:
+        output_language = "English"
+    else:
+        output_language = ask_output_language()
 
     # Step 4: Select analysts
-    console.print(
-        create_question_box(
-            "Step 4: Analysts Team", "Select your LLM analyst agents for the analysis"
+    if not non_interactive and not has("analysts"):
+        console.print(
+            create_question_box(
+                "Step 4: Analysts Team", "Select your LLM analyst agents for the analysis"
+            )
         )
-    )
-    selected_analysts = select_analysts()
-    console.print(
-        f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
-    )
+    if has("analysts"):
+        selected_analysts = [AnalystType(a) for a in prefill["analysts"]]
+    elif non_interactive:
+        selected_analysts = list(AnalystType)
+    else:
+        selected_analysts = select_analysts()
+        console.print(
+            f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
+        )
 
     # Step 5: Research depth
-    console.print(
-        create_question_box(
-            "Step 5: Research Depth", "Select your research depth level"
+    if not non_interactive and not has("research_depth"):
+        console.print(
+            create_question_box(
+                "Step 5: Research Depth", "Select your research depth level"
+            )
         )
-    )
-    selected_research_depth = select_research_depth()
+    if has("research_depth"):
+        selected_research_depth = prefill["research_depth"]
+    elif non_interactive:
+        selected_research_depth = 3
+    else:
+        selected_research_depth = select_research_depth()
 
     # Step 6: LLM Provider
-    console.print(
-        create_question_box(
-            "Step 6: LLM Provider", "Select your LLM provider"
+    if not non_interactive and not has("llm_provider"):
+        console.print(
+            create_question_box(
+                "Step 6: LLM Provider", "Select your LLM provider"
+            )
         )
-    )
-    selected_llm_provider, backend_url = select_llm_provider()
+    if has("llm_provider"):
+        selected_llm_provider = prefill["llm_provider"].lower()
+        backend_url = get_provider_url(selected_llm_provider)
+    elif non_interactive:
+        selected_llm_provider = "openai"
+        backend_url = "https://api.openai.com/v1"
+    else:
+        selected_llm_provider, backend_url = select_llm_provider()
 
     # Step 7: Thinking agents
-    console.print(
-        create_question_box(
-            "Step 7: Thinking Agents", "Select your thinking agents for analysis"
+    if not non_interactive and not (has("shallow_thinker") and has("deep_thinker")):
+        console.print(
+            create_question_box(
+                "Step 7: Thinking Agents", "Select your thinking agents for analysis"
+            )
         )
-    )
-    selected_shallow_thinker = select_shallow_thinking_agent(selected_llm_provider)
-    selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
+    if has("shallow_thinker"):
+        selected_shallow_thinker = prefill["shallow_thinker"]
+    elif non_interactive:
+        selected_shallow_thinker = get_default_model(selected_llm_provider, "quick")
+    else:
+        selected_shallow_thinker = select_shallow_thinking_agent(selected_llm_provider)
+
+    if has("deep_thinker"):
+        selected_deep_thinker = prefill["deep_thinker"]
+    elif non_interactive:
+        selected_deep_thinker = get_default_model(selected_llm_provider, "deep")
+    else:
+        selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
 
     # Step 8: Provider-specific thinking configuration
     thinking_level = None
@@ -572,29 +623,57 @@ def get_user_selections():
 
     provider_lower = selected_llm_provider.lower()
     if provider_lower == "google":
-        console.print(
-            create_question_box(
-                "Step 8: Thinking Mode",
-                "Configure Gemini thinking mode"
+        if not non_interactive and not has("google_thinking_level"):
+            console.print(
+                create_question_box(
+                    "Step 8: Thinking Mode",
+                    "Configure Gemini thinking mode"
+                )
             )
-        )
-        thinking_level = ask_gemini_thinking_config()
+        if has("google_thinking_level"):
+            thinking_level = prefill["google_thinking_level"]
+        elif non_interactive:
+            thinking_level = "high"
+        else:
+            thinking_level = ask_gemini_thinking_config()
     elif provider_lower == "openai":
-        console.print(
-            create_question_box(
-                "Step 8: Reasoning Effort",
-                "Configure OpenAI reasoning effort level"
+        if not non_interactive and not has("openai_reasoning_effort"):
+            console.print(
+                create_question_box(
+                    "Step 8: Reasoning Effort",
+                    "Configure OpenAI reasoning effort level"
+                )
             )
-        )
-        reasoning_effort = ask_openai_reasoning_effort()
+        if has("openai_reasoning_effort"):
+            reasoning_effort = prefill["openai_reasoning_effort"]
+        elif non_interactive:
+            reasoning_effort = "medium"
+        else:
+            reasoning_effort = ask_openai_reasoning_effort()
     elif provider_lower == "anthropic":
-        console.print(
-            create_question_box(
-                "Step 8: Effort Level",
-                "Configure Claude effort level"
+        if not non_interactive and not has("anthropic_effort"):
+            console.print(
+                create_question_box(
+                    "Step 8: Effort Level",
+                    "Configure Claude effort level"
+                )
             )
+        if has("anthropic_effort"):
+            anthropic_effort = prefill["anthropic_effort"]
+        elif non_interactive:
+            anthropic_effort = "high"
+        else:
+            anthropic_effort = ask_anthropic_effort()
+
+    if non_interactive:
+        console.print(
+            f"\n[bold green]Configuration:[/bold green] "
+            f"ticker={selected_ticker} | date={analysis_date} | "
+            f"provider={selected_llm_provider} | "
+            f"models={selected_shallow_thinker}/{selected_deep_thinker} | "
+            f"analysts={[a.value for a in selected_analysts]} | "
+            f"language={output_language} | depth={selected_research_depth}"
         )
-        anthropic_effort = ask_anthropic_effort()
 
     return {
         "ticker": selected_ticker,
@@ -926,9 +1005,15 @@ def format_tool_args(args, max_length=80) -> str:
         return result[:max_length - 3] + "..."
     return result
 
-def run_analysis(checkpoint: bool = False):
-    # First get all user selections
-    selections = get_user_selections()
+def run_analysis(
+    checkpoint: bool = False,
+    prefill: dict = None,
+    non_interactive: bool = False,
+    auto_save: bool = False,
+    save_path: Path = None,
+    display_report: bool = False,
+):
+    selections = get_user_selections(prefill=prefill, non_interactive=non_interactive)
 
     # Create config with selected research depth
     config = DEFAULT_CONFIG.copy()
@@ -1171,30 +1256,41 @@ def run_analysis(checkpoint: bool = False):
 
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
-    # Post-analysis prompts (outside Live context for clean interaction)
+    # Post-analysis (outside Live context for clean interaction)
     console.print("\n[bold cyan]Analysis Complete![/bold cyan]\n")
 
-    # Prompt to save report
-    save_choice = typer.prompt("Save report?", default="Y").strip().upper()
-    if save_choice in ("Y", "YES", ""):
+    if auto_save:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
-        save_path_str = typer.prompt(
-            "Save path (press Enter for default)",
-            default=str(default_path)
-        ).strip()
-        save_path = Path(save_path_str)
+        actual_save_path = save_path or Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
         try:
-            report_file = save_report_to_disk(final_state, selections["ticker"], save_path)
-            console.print(f"\n[green]✓ Report saved to:[/green] {save_path.resolve()}")
+            report_file = save_report_to_disk(final_state, selections["ticker"], actual_save_path)
+            console.print(f"\n[green]Report saved to:[/green] {actual_save_path.resolve()}")
             console.print(f"  [dim]Complete report:[/dim] {report_file.name}")
         except Exception as e:
             console.print(f"[red]Error saving report: {e}[/red]")
+    else:
+        save_choice = typer.prompt("Save report?", default="Y").strip().upper()
+        if save_choice in ("Y", "YES", ""):
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
+            save_path_str = typer.prompt(
+                "Save path (press Enter for default)",
+                default=str(default_path)
+            ).strip()
+            sp = Path(save_path_str)
+            try:
+                report_file = save_report_to_disk(final_state, selections["ticker"], sp)
+                console.print(f"\n[green]Report saved to:[/green] {sp.resolve()}")
+                console.print(f"  [dim]Complete report:[/dim] {report_file.name}")
+            except Exception as e:
+                console.print(f"[red]Error saving report: {e}[/red]")
 
-    # Prompt to display full report
-    display_choice = typer.prompt("\nDisplay full report on screen?", default="Y").strip().upper()
-    if display_choice in ("Y", "YES", ""):
+    if display_report:
         display_complete_report(final_state)
+    elif not non_interactive:
+        display_choice = typer.prompt("\nDisplay full report on screen?", default="Y").strip().upper()
+        if display_choice in ("Y", "YES", ""):
+            display_complete_report(final_state)
 
 
 @app.command()
@@ -1209,12 +1305,128 @@ def analyze(
         "--clear-checkpoints",
         help="Delete all saved checkpoints before running (force fresh start).",
     ),
+    ticker: str = typer.Option(
+        None,
+        "--ticker", "-t",
+        help="Ticker symbol to analyze (e.g. SPY, AAPL, 7203.T).",
+    ),
+    date: str = typer.Option(
+        None,
+        "--date", "-d",
+        help="Analysis date in YYYY-MM-DD format.",
+    ),
+    language: str = typer.Option(
+        None,
+        "--language", "-l",
+        help="Output language for reports (e.g. English, Chinese, Japanese).",
+    ),
+    analysts: Optional[List[str]] = typer.Option(
+        None,
+        "--analyst", "-a",
+        help="Analysts to include. Repeat for multiple: -a market -a news. Options: market, social, news, fundamentals.",
+    ),
+    research_depth: str = typer.Option(
+        None,
+        "--research-depth",
+        help="Research depth: shallow, medium, or deep.",
+    ),
+    provider: str = typer.Option(
+        None,
+        "--provider", "-p",
+        help="LLM provider: openai, google, anthropic, xai, deepseek, qwen, glm, openrouter, azure, ollama.",
+    ),
+    shallow_model: str = typer.Option(
+        None,
+        "--shallow-model",
+        help="Model ID for quick-thinking agent.",
+    ),
+    deep_model: str = typer.Option(
+        None,
+        "--deep-model",
+        help="Model ID for deep-thinking agent.",
+    ),
+    thinking_level: str = typer.Option(
+        None,
+        "--thinking-level",
+        help="Gemini thinking level: high or minimal.",
+    ),
+    reasoning_effort: str = typer.Option(
+        None,
+        "--reasoning-effort",
+        help="OpenAI reasoning effort: low, medium, or high.",
+    ),
+    anthropic_effort: str = typer.Option(
+        None,
+        "--anthropic-effort",
+        help="Anthropic effort level: low, medium, or high.",
+    ),
+    save: bool = typer.Option(
+        False,
+        "--save", "-s",
+        help="Auto-save report after analysis completes.",
+    ),
+    save_path: str = typer.Option(
+        None,
+        "--save-path",
+        help="Directory to save report to (used with --save or --non-interactive).",
+    ),
+    display_report: bool = typer.Option(
+        False,
+        "--display-report",
+        help="Display full report on screen after analysis.",
+    ),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        help="Skip all prompts. Uses defaults for unspecified options. Implies --save.",
+    ),
 ):
     if clear_checkpoints:
         from tradingagents.graph.checkpointer import clear_all_checkpoints
         n = clear_all_checkpoints(DEFAULT_CONFIG["data_cache_dir"])
         console.print(f"[yellow]Cleared {n} checkpoint(s).[/yellow]")
-    run_analysis(checkpoint=checkpoint)
+
+    prefill = {}
+    if ticker is not None:
+        prefill["ticker"] = ticker
+    if date is not None:
+        prefill["analysis_date"] = date
+    if language is not None:
+        prefill["output_language"] = language
+    if analysts is not None:
+        valid = {a.value for a in AnalystType}
+        invalid = [a for a in analysts if a.lower() not in valid]
+        if invalid:
+            console.print(f"[red]Invalid analyst(s): {', '.join(invalid)}. Must be: {', '.join(sorted(valid))}[/red]")
+            raise typer.Exit(1)
+        prefill["analysts"] = analysts
+    if research_depth is not None:
+        depth_lower = research_depth.lower()
+        if depth_lower not in RESEARCH_DEPTH_MAP:
+            console.print(f"[red]Invalid research depth '{research_depth}'. Must be: shallow, medium, or deep.[/red]")
+            raise typer.Exit(1)
+        prefill["research_depth"] = RESEARCH_DEPTH_MAP[depth_lower]
+    if provider is not None:
+        prefill["llm_provider"] = provider
+    if shallow_model is not None:
+        prefill["shallow_thinker"] = shallow_model
+    if deep_model is not None:
+        prefill["deep_thinker"] = deep_model
+    if thinking_level is not None:
+        prefill["google_thinking_level"] = thinking_level
+    if reasoning_effort is not None:
+        prefill["openai_reasoning_effort"] = reasoning_effort
+    if anthropic_effort is not None:
+        prefill["anthropic_effort"] = anthropic_effort
+
+    run_analysis(
+        checkpoint=checkpoint,
+        prefill=prefill,
+        non_interactive=non_interactive,
+        auto_save=save or non_interactive,
+        save_path=Path(save_path) if save_path else None,
+        display_report=display_report,
+    )
 
 
 if __name__ == "__main__":
