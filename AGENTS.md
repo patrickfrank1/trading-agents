@@ -5,20 +5,32 @@ Multi-agent LLM financial trading framework (v0.2.4). Agents analyze stocks thro
 ## Commands
 
 ```bash
-pip install .                    # install editable
-python -m cli.main               # run CLI (interactive)
-tradingagents                     # same, after install
-tradingagents analyze --checkpoint         # enable crash-resume
-tradingagents analyze --clear-checkpoints  # wipe saved checkpoints
+uv pip install -e .              # install editable
+uv run python -m cli.main        # run CLI (interactive)
+uv run tradingagents              # same, after install
+
+# non-interactive (fully automated, no prompts)
+uv run tradingagents analyze --non-interactive
+
+# specify options via flags
+uv run tradingagents analyze --non-interactive \
+  -t AAPL -d 2025-04-01 \
+  -a market -a news -a fundamentals \
+  -p anthropic --shallow-model claude-haiku-4-5 --deep-model claude-opus-4-6 \
+  --anthropic-effort high --display-report
+
+# checkpoint / recovery
+uv run tradingagents analyze --checkpoint         # enable crash-resume
+uv run tradingagents analyze --clear-checkpoints  # wipe saved checkpoints
 
 # tests
-pytest                           # all tests
-pytest -m unit                   # fast, no API calls needed
-pytest -m smoke                  # sanity checks
-pytest tests/test_model_validation.py     # single file
+uv run pytest                      # all tests
+uv run pytest -m unit              # fast, no API calls needed
+uv run pytest -m smoke             # sanity checks
+uv run pytest tests/test_model_validation.py  # single file
 
 # smoke test structured-output against a real provider (costs tokens)
-OPENAI_API_KEY=... python scripts/smoke_structured_output.py openai
+OPENAI_API_KEY=... uv run python scripts/smoke_structured_output.py openai
 
 # docker
 docker compose run --rm tradingagents

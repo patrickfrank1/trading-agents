@@ -162,7 +162,7 @@ cp .env.example .env
 Launch the interactive CLI:
 ```bash
 tradingagents          # installed command
-python -m cli.main     # alternative: run directly from source
+uv run tradingagents   # via uv
 ```
 You will see a screen where you can select your desired tickers, analysis date, LLM provider, research depth, and more.
 
@@ -179,6 +179,50 @@ An interface will appear showing results as they load, letting you track the age
 <p align="center">
   <img src="assets/cli/cli_transaction.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
+
+### CLI Flags
+
+All interactive prompts can be controlled via CLI flags. Any flags you provide skip the corresponding prompt; any you omit are prompted for interactively (unless `--non-interactive` is set).
+
+```bash
+# Fully automated — uses defaults for everything you don't specify
+tradingagents analyze --non-interactive
+
+# Fully specified example
+tradingagents analyze --non-interactive \
+  -t AAPL -d 2025-04-01 \
+  -a market -a news -a fundamentals \
+  -p anthropic \
+  --shallow-model claude-haiku-4-5 --deep-model claude-opus-4-6 \
+  --anthropic-effort high \
+  --save --display-report
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--ticker` | `-t` | `SPY` | Ticker symbol (e.g. `AAPL`, `7203.T`, `0700.HK`) |
+| `--date` | `-d` | today | Analysis date in `YYYY-MM-DD` format |
+| `--language` | `-l` | `English` | Output language for reports |
+| `--analyst` | `-a` | all 4 | Analysts to include (repeatable): `market`, `social`, `news`, `fundamentals` |
+| `--research-depth` | | `medium` | Debate thoroughness: `shallow`, `medium`, or `deep` |
+| `--provider` | `-p` | `openai` | LLM provider: `openai`, `google`, `anthropic`, `xai`, `deepseek`, `qwen`, `glm`, `openrouter`, `azure`, `ollama` |
+| `--shallow-model` | | *(first catalog model)* | Model ID for quick-thinking agents |
+| `--deep-model` | | *(first catalog model)* | Model ID for deep-thinking agents |
+| `--thinking-level` | | `high` | Gemini thinking mode: `high` or `minimal` |
+| `--reasoning-effort` | | `medium` | OpenAI reasoning effort: `low`, `medium`, or `high` |
+| `--anthropic-effort` | | `high` | Anthropic effort level: `low`, `medium`, or `high` |
+| `--save` | `-s` | `false` | Auto-save report after analysis |
+| `--save-path` | | | Custom directory to save report to |
+| `--display-report` | | `false` | Print full report to screen after analysis |
+| `--non-interactive` | | `false` | Skip all prompts, use defaults for unspecified options (implies `--save`) |
+| `--checkpoint` | | `false` | Enable checkpoint/resume for crash recovery |
+| `--clear-checkpoints` | | `false` | Delete all saved checkpoints before running |
+
+You can provide some flags and still be prompted for the rest:
+```bash
+# Specify ticker and provider, get prompted for everything else
+tradingagents analyze -t NVDA -p google --deep-model gemini-2.5-pro
+```
 
 ## TradingAgents Package
 
