@@ -7,6 +7,15 @@ import yfinance as yf
 
 from tradingagents.dataflows.yfinance_news import _extract_article_data
 from tradingagents.dataflows.stockstats_utils import yf_retry
+from tradingagents.dataflows.macro_market_data import (
+    fetch_macro_market_data,
+    format_macro_market_report,
+)
+from tradingagents.dataflows.macro_vendors import (
+    fetch_vendor_data,
+    format_vendor_report,
+    get_available_vendors,
+)
 
 
 def _search_macro_news(queries, curr_date, look_back_days, limit):
@@ -177,3 +186,128 @@ def get_nonfarm_payrolls_data(
         f"Period: {curr_date} (last {look_back_days} days)\n\n"
     )
     return header + news
+
+
+@tool
+def get_macro_market_data() -> str:
+    """
+    Retrieve a comprehensive snapshot of broad macro market conditions
+    including US Treasury yields and yield curve shape, gold, oil (WTI and
+    Brent), broad commodities, housing/real estate ETFs, and equity market
+    breadth (RSP/SPY ratio, VIX, Russell 2000).  Data is cached for up to
+    7 days since it is independent of any individual ticker.
+
+    Use this tool to understand the macro environment beyond CPI, FOMC,
+    and employment data.  The report covers:
+    - Treasury yields (13W, 5Y, 10Y, 30Y) and yield curve spreads
+    - Gold price, trend, and RSI
+    - WTI and Brent crude oil prices and spread
+    - Broad commodities ETF (DBC)
+    - Housing market proxies (XHB homebuilders, ITB, VNQ REITs)
+    - Equity breadth (RSP/SPY ratio, VIX, Russell 2000 momentum)
+
+    Returns:
+        str: A formatted markdown report with current macro market conditions
+    """
+    try:
+        data = fetch_macro_market_data()
+        return format_macro_market_report(data)
+    except Exception as e:
+        return f"Error fetching macro market data: {str(e)}"
+
+
+@tool
+def get_fred_economic_data(
+    look_back_months: Annotated[int, "Number of months of history to fetch"] = 12,
+) -> str:
+    """
+    Retrieve official US economic indicators from the Federal Reserve Economic
+    Data (FRED) database. Requires FRED_API_KEY environment variable.
+
+    Covers: CPI, PCE, Real GDP, unemployment rate, nonfarm payrolls, Fed funds
+    rate, Treasury yields (2Y/10Y/3MO), yield curve spread, VIX, housing
+    starts, median home prices, manufacturing employment, consumer sentiment,
+    and industrial production.
+
+    Returns:
+        str: A formatted markdown report with the latest values and trends
+    """
+    try:
+        import os
+        api_key = os.environ.get("FRED_API_KEY", "")
+        if not api_key:
+            available = get_available_vendors()
+            return (
+                "FRED API key not configured. Set FRED_API_KEY environment variable.\n"
+                "Request a free key at https://fred.stlouisfed.org/docs/api/api_key.html\n"
+                f"\nCurrently available macro vendors: {available}"
+            )
+        data = fetch_vendor_data("fred", api_key=api_key, look_back_months=look_back_months)
+        return format_vendor_report("fred", data)
+    except Exception as e:
+        return f"Error fetching FRED data: {str(e)}"
+
+
+@tool
+def get_oecd_data() -> str:
+    """
+    Retrieve key macro indicators from the OECD (Organisation for Economic
+    Co-operation and Development) for the US, Eurozone, Japan, UK, China, and
+    Germany. No API key required.
+
+    Covers: GDP growth, unemployment rate, CPI inflation, long-term interest
+    rates, industrial production, and retail trade.
+
+    Returns:
+        str: A formatted markdown report with latest OECD indicators
+    """
+    try:
+        data = fetch_vendor_data("oecd")
+        return format_vendor_report("oecd", data)
+    except Exception as e:
+        return f"Error fetching OECD data: {str(e)}"
+
+
+@tool
+def get_world_bank_data(
+    country: Annotated[str, "ISO country code (e.g. USA, CHN, GBR, DEU, JPN)"] = "USA",
+) -> str:
+    """
+    Retrieve macro indicators from the World Bank Open Data API for a given
+    country. No API key required.
+
+    Covers: GDP growth, inflation, unemployment, real interest rate, trade as
+    % of GDP, FDI net inflows, government debt as % of GDP, exchange rate,
+    and GDP in current US dollars.
+
+    Args:
+        country: ISO 3166 country code (default: USA)
+
+    Returns:
+        str: A formatted markdown report with World Bank indicators
+    """
+    try:
+        data = fetch_vendor_data("worldbank", country=country)
+        return format_vendor_report("worldbank", data)
+    except Exception as e:
+        return f"Error fetching World Bank data: {str(e)}"
+
+
+@tool
+def get_ecb_data() -> str:
+    """
+    Retrieve Eurozone macro indicators from the European Central Bank via
+    SDMX. No API key required.
+
+    Covers: ECB policy rates (deposit facility, EURIBOR, EONIA, lending
+    facility), HICP inflation, unemployment, industrial production, and
+    retail trade for the euro area.
+
+    Returns:
+        str: A formatted markdown report with ECB / Eurozone indicators
+    """
+    try:
+        data = fetch_vendor_data("ecb")
+        return format_vendor_report("ecb", data)
+    except Exception as e:
+        return f"Error fetching ECB data: {str(e)}"

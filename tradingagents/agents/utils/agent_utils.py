@@ -23,6 +23,11 @@ from tradingagents.agents.utils.macro_data_tools import (
     get_cpi_data,
     get_fomc_data,
     get_nonfarm_payrolls_data,
+    get_macro_market_data,
+    get_fred_economic_data,
+    get_oecd_data,
+    get_world_bank_data,
+    get_ecb_data,
 )
 from tradingagents.agents.utils.business_data_tools import (
     get_company_profile,

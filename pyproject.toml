@@ -32,6 +32,14 @@ dependencies = [
     "yfinance>=0.2.63",
 ]
 
+[project.optional-dependencies]
+macro-vendors = [
+    "fredapi>=0.5.1",
+]
+all = [
+    "fredapi>=0.5.1",
+]
+
 [project.scripts]
 tradingagents = "cli.main:app"
 

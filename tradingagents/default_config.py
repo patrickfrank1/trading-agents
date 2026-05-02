@@ -48,4 +48,7 @@ DEFAULT_CONFIG = {
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
     },
+    # Macro data vendors (environment variables)
+    # FRED_API_KEY    — Federal Reserve Economic Data (free)  https://fred.stlouisfed.org/docs/api/api_key.html
+    # OECD, World Bank, ECB — no API key required
 }

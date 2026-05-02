@@ -157,6 +157,39 @@ Alternatively, copy `.env.example` to `.env` and fill in your keys:
 cp .env.example .env
 ```
 
+### Macro Data Vendors
+
+The macro analyst can fetch data from institutional sources beyond yfinance. All vendors are optional — the system works with yfinance alone.
+
+| Vendor | API Key | Cost | What it provides |
+|--------|---------|------|-----------------|
+| **FRED** (Federal Reserve) | `FRED_API_KEY` | Free | CPI, PCE, GDP, unemployment, payrolls, Fed funds rate, Treasury yields, yield curve, VIX, housing starts, consumer sentiment, industrial production |
+| **OECD** | None required | Free | GDP growth, unemployment, inflation, interest rates, industrial production for US, Eurozone, Japan, UK, China, Germany |
+| **World Bank** | None required | Free | GDP growth, inflation, unemployment, real interest rate, trade, FDI, government debt, exchange rates |
+| **ECB** | None required | Free | ECB policy rates, EURIBOR, EONIA, HICP inflation, Eurozone unemployment, industrial production, retail trade |
+
+**Install optional dependencies:**
+```bash
+pip install ".[macro-vendors]"   # FRED support (fredapi)
+# or install everything:
+pip install ".[all]"
+```
+
+#### Getting a FRED API Key (free)
+
+1. Go to [https://fred.stlouisfed.org/docs/api/api_key.html](https://fred.stlouisfed.org/docs/api/api_key.html)
+2. Click **"Request API Key"** near the top
+3. Fill in your name and email address
+4. Check your email for the API key (usually arrives within minutes)
+5. Add it to your environment:
+   ```bash
+   export FRED_API_KEY=your_api_key_here
+   # Or add to your .env file:
+   echo 'FRED_API_KEY=your_api_key_here' >> .env
+   ```
+
+The OECD, World Bank, and ECB APIs require no signup — they work out of the box once TradingAgents is installed.
+
 ### CLI Usage
 
 Launch the interactive CLI:

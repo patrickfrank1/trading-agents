@@ -40,6 +40,11 @@ from tradingagents.agents.utils.agent_utils import (
     get_cpi_data,
     get_fomc_data,
     get_nonfarm_payrolls_data,
+    get_macro_market_data,
+    get_fred_economic_data,
+    get_oecd_data,
+    get_world_bank_data,
+    get_ecb_data,
     get_company_profile,
     get_sector_performance,
     get_peer_comparison,
@@ -200,6 +205,13 @@ class TradingAgentsGraph:
                     get_cpi_data,
                     get_fomc_data,
                     get_nonfarm_payrolls_data,
+                    # Broad macro market snapshot (Treasury, gold, oil, commodities, housing, breadth)
+                    get_macro_market_data,
+                    # Institutional macro data vendors
+                    get_fred_economic_data,
+                    get_oecd_data,
+                    get_world_bank_data,
+                    get_ecb_data,
                 ]
             ),
             "business": ToolNode(
