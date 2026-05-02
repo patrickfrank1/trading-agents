@@ -24,6 +24,12 @@ from tradingagents.agents.utils.macro_data_tools import (
     get_fomc_data,
     get_nonfarm_payrolls_data,
 )
+from tradingagents.agents.utils.business_data_tools import (
+    get_company_profile,
+    get_sector_performance,
+    get_peer_comparison,
+    get_10k_filing,
+)
 
 
 def get_language_instruction() -> str:

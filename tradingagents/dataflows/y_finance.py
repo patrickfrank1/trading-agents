@@ -463,3 +463,244 @@ def get_insider_transactions(
         
     except Exception as e:
         return f"Error retrieving insider transactions for {ticker}: {str(e)}"
+
+
+def get_company_profile(
+    ticker: Annotated[str, "ticker symbol of the company"],
+):
+    """Get detailed company profile and business model information from yfinance."""
+    try:
+        ticker_obj = yf.Ticker(ticker.upper())
+        info = yf_retry(lambda: ticker_obj.info)
+
+        if not info:
+            return f"No company profile data found for symbol '{ticker}'"
+
+        fields = [
+            ("Name", info.get("longName")),
+            ("Sector", info.get("sector")),
+            ("Industry", info.get("industry")),
+            ("Country", info.get("country")),
+            ("City", info.get("city")),
+            ("Website", info.get("website")),
+            ("Employees", info.get("fullTimeEmployees")),
+            ("Company Type", info.get("quoteType")),
+            ("Currency", info.get("currency")),
+            ("Exchange", info.get("exchange")),
+            ("Market Cap", info.get("marketCap")),
+            ("Enterprise Value", info.get("enterpriseValue")),
+            ("Business Summary", info.get("longBusinessSummary")),
+            ("Revenue (TTM)", info.get("totalRevenue")),
+            ("Gross Profit Margin", info.get("grossMargins")),
+            ("Operating Margin", info.get("operatingMargins")),
+            ("Net Profit Margin", info.get("profitMargins")),
+            ("Return on Equity", info.get("returnOnEquity")),
+            ("Revenue Growth", info.get("revenueGrowth")),
+            ("Earnings Growth", info.get("earningsGrowth")),
+            ("Dividend Yield", info.get("dividendYield")),
+            ("Payout Ratio", info.get("payoutRatio")),
+            ("Recommendation", info.get("recommendationKey")),
+            ("Number of Analysts", info.get("numberOfAnalystOpinions")),
+            ("Target High Price", info.get("targetHighPrice")),
+            ("Target Low Price", info.get("targetLowPrice")),
+            ("Target Mean Price", info.get("targetMeanPrice")),
+            ("Target Median Price", info.get("targetMedianPrice")),
+            ("Beta", info.get("beta")),
+            ("52 Week High", info.get("fiftyTwoWeekHigh")),
+            ("52 Week Low", info.get("fiftyTwoWeekLow")),
+            ("Current Price", info.get("currentPrice")),
+            ("Trailing PE", info.get("trailingPE")),
+            ("Forward PE", info.get("forwardPE")),
+            ("PEG Ratio", info.get("pegRatio")),
+            ("Price to Book", info.get("priceToBook")),
+            ("Price to Sales", info.get("priceToSalesTrailing12Months")),
+            ("Enterprise to Revenue", info.get("enterpriseToRevenue")),
+            ("Enterprise to EBITDA", info.get("enterpriseToEbitda")),
+            ("Debt to Equity", info.get("debtToEquity")),
+            ("Current Ratio", info.get("currentRatio")),
+            ("Quick Ratio", info.get("quickRatio")),
+        ]
+
+        lines = []
+        for label, value in fields:
+            if value is not None:
+                lines.append(f"{label}: {value}")
+
+        header = f"# Company Business Profile for {ticker.upper()}\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+        return header + "\n".join(lines)
+
+    except Exception as e:
+        return f"Error retrieving company profile for {ticker}: {str(e)}"
+
+
+def get_sector_performance(
+    sector: Annotated[str, "sector name (e.g. Technology, Healthcare)"],
+    period: Annotated[str, "time period: '1mo', '3mo', '6mo', '1y', 'ytd'"] = "1y",
+):
+    """Get sector performance data and compare against an ETF benchmark."""
+    import pandas as pd
+
+    SECTOR_ETF_MAP = {
+        "technology": "XLK",
+        "healthcare": "XLV",
+        "financials": "XLF",
+        "consumer discretionary": "XLY",
+        "consumer staples": "XLP",
+        "energy": "XLE",
+        "industrials": "XLI",
+        "materials": "XLB",
+        "real estate": "XLRE",
+        "utilities": "XLU",
+        "communication services": "XLC",
+    }
+
+    sector_lower = sector.lower().strip()
+    if sector_lower not in SECTOR_ETF_MAP:
+        available = ", ".join(sorted(SECTOR_ETF_MAP.keys()))
+        return (
+            f"Sector '{sector}' not found. Available sectors: {available}. "
+            f"Please choose from these GICS sectors."
+        )
+
+    etf = SECTOR_ETF_MAP[sector_lower]
+
+    period_map = {
+        "1mo": "1mo",
+        "3mo": "3mo",
+        "6mo": "6mo",
+        "1y": "1y",
+        "ytd": "ytd",
+    }
+    period_param = period_map.get(period.lower(), "1y")
+
+    try:
+        etf_ticker = yf.Ticker(etf)
+        spy_ticker = yf.Ticker("SPY")
+
+        etf_hist = yf_retry(lambda: etf_ticker.history(period=period_param))
+        spy_hist = yf_retry(lambda: spy_ticker.history(period=period_param))
+
+        lines = [f"# Sector Performance: {sector.title()} (ETF: {etf})"]
+        lines.append(f"Period: {period_param}")
+        lines.append(f"Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+        if not etf_hist.empty:
+            etf_start = etf_hist["Close"].iloc[0]
+            etf_end = etf_hist["Close"].iloc[-1]
+            etf_return = (etf_end - etf_start) / etf_start * 100
+            lines.append(f"{etf} (Sector ETF):")
+            lines.append(f"  Start Price: {etf_start:.2f}")
+            lines.append(f"  End Price: {etf_end:.2f}")
+            lines.append(f"  Return: {etf_return:.2f}%")
+            lines.append(f"  Highest: {etf_hist['High'].max():.2f}")
+            lines.append(f"  Lowest: {etf_hist['Low'].min():.2f}")
+            lines.append(f"  Average Volume: {etf_hist['Volume'].mean():,.0f}")
+
+        if not spy_hist.empty:
+            spy_start = spy_hist["Close"].iloc[0]
+            spy_end = spy_hist["Close"].iloc[-1]
+            spy_return = (spy_end - spy_start) / spy_start * 100
+            lines.append(f"\nSPY (S&P 500 Benchmark):")
+            lines.append(f"  Return: {spy_return:.2f}%")
+
+            if not etf_hist.empty:
+                alpha = etf_return - spy_return
+                lines.append(f"\nRelative Performance (Alpha vs S&P 500): {alpha:.2f}%")
+
+        holdings = yf_retry(lambda: etf_ticker.get_info().get("holdings", None))
+        if not holdings:
+            try:
+                holdings_data = yf_retry(lambda: etf_ticker.institutional_holders)
+                if holdings_data is not None and not holdings_data.empty:
+                    lines.append(f"\nTop Institutional Holders in {etf}:")
+                    lines.append(holdings_data.head(10).to_csv(index=False))
+            except Exception:
+                pass
+
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"Error retrieving sector performance for {sector}: {str(e)}"
+
+
+def get_peer_comparison(
+    ticker: Annotated[str, "ticker symbol of the company"],
+):
+    """Get peer comparison data by finding companies in the same sector."""
+    try:
+        ticker_obj = yf.Ticker(ticker.upper())
+        info = yf_retry(lambda: ticker_obj.info)
+
+        if not info:
+            return f"No data found for symbol '{ticker}'"
+
+        sector = info.get("sector")
+        industry = info.get("industry")
+
+        if not sector:
+            return f"Could not determine sector for '{ticker}'"
+
+        from yfinance import ScreenerQuery
+
+        query = ScreenerQuery(
+            query={"sector": sector, "industry": industry},
+            max_results=10,
+        )
+
+        try:
+            screener = yf.Screener()
+            data = screener.response
+        except Exception:
+            data = None
+
+        if not data:
+            return (
+                f"# Peer Comparison for {ticker.upper()}\n"
+                f"Sector: {sector}\n"
+                f"Industry: {industry}\n\n"
+                f"Could not retrieve peer screen data. The company operates in the "
+                f"{sector} / {industry} space. Compare against known competitors manually."
+            )
+
+        lines = [f"# Peer Comparison for {ticker.upper()}"]
+        lines.append(f"Sector: {sector}")
+        lines.append(f"Industry: {industry}")
+        lines.append(f"Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+        company_data = {
+            "Market Cap": info.get("marketCap"),
+            "PE Ratio": info.get("trailingPE"),
+            "Forward PE": info.get("forwardPE"),
+            "PEG Ratio": info.get("pegRatio"),
+            "Price to Book": info.get("priceToBook"),
+            "Profit Margin": info.get("profitMargins"),
+            "Operating Margin": info.get("operatingMargins"),
+            "Return on Equity": info.get("returnOnEquity"),
+            "Revenue Growth": info.get("revenueGrowth"),
+            "Dividend Yield": info.get("dividendYield"),
+            "Debt to Equity": info.get("debtToEquity"),
+            "Beta": info.get("beta"),
+        }
+
+        lines.append(f"\n{ticker.upper()} key metrics:")
+        for metric, value in company_data.items():
+            if value is not None:
+                if isinstance(value, float):
+                    lines.append(f"  {metric}: {value:.4f}")
+                else:
+                    lines.append(f"  {metric}: {value}")
+
+        lines.append(f"\nSector: {sector}")
+        lines.append(f"Industry: {industry}")
+        lines.append(
+            "\nNote: Peer-level screener data is not available through this data provider. "
+            "Use the company metrics above combined with sector ETF performance to assess "
+            "relative positioning."
+        )
+
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"Error retrieving peer comparison for {ticker}: {str(e)}"

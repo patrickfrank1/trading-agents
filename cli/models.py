@@ -9,3 +9,4 @@ class AnalystType(str, Enum):
     NEWS = "news"
     FUNDAMENTALS = "fundamentals"
     MACRO = "macro"
+    BUSINESS = "business"

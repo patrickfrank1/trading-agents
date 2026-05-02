@@ -57,6 +57,7 @@ class AgentState(MessagesState):
     ]
     fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
     macro_report: Annotated[str, "Report from the Macro Analyst"]
+    business_report: Annotated[str, "Report from the Business Analyst"]
 
     # researcher team discussion step
     investment_debate_state: Annotated[

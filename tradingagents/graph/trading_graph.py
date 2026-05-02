@@ -40,6 +40,10 @@ from tradingagents.agents.utils.agent_utils import (
     get_cpi_data,
     get_fomc_data,
     get_nonfarm_payrolls_data,
+    get_company_profile,
+    get_sector_performance,
+    get_peer_comparison,
+    get_10k_filing,
 )
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -196,6 +200,15 @@ class TradingAgentsGraph:
                     get_cpi_data,
                     get_fomc_data,
                     get_nonfarm_payrolls_data,
+                ]
+            ),
+            "business": ToolNode(
+                [
+                    # Business model and competitive analysis
+                    get_company_profile,
+                    get_sector_performance,
+                    get_peer_comparison,
+                    get_10k_filing,
                 ]
             ),
         }
@@ -369,6 +382,7 @@ class TradingAgentsGraph:
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
             "macro_report": final_state["macro_report"],
+            "business_report": final_state["business_report"],
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],
