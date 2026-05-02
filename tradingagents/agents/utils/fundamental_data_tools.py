@@ -1,6 +1,7 @@
 from langchain_core.tools import tool
 from typing import Annotated
 from tradingagents.dataflows.interface import route_to_vendor
+from tradingagents.agents.utils.dcf import run_three_scenario_dcf
 
 
 @tool
@@ -75,3 +76,24 @@ def get_income_statement(
         str: A formatted report containing income statement data
     """
     return route_to_vendor("get_income_statement", ticker, freq, curr_date)
+
+
+@tool
+def compute_dcf_analysis(
+    ticker: Annotated[str, "ticker symbol"],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+) -> str:
+    """
+    Compute a 3-scenario Discounted Cash Flow (DCF) valuation analysis.
+    Returns pessimistic, base, and optimistic fair-value estimates with a
+    full valuation bridge (WACC, projected FCFs, terminal value, equity value per share).
+    This is a deterministic calculation — the LLM should interpret the results
+    in its narrative report rather than re-computing them.
+
+    Args:
+        ticker (str): Ticker symbol of the company
+        curr_date (str): Current date you are trading at, yyyy-mm-dd (optional)
+    Returns:
+        str: Markdown-formatted DCF analysis with three scenarios
+    """
+    return run_three_scenario_dcf(ticker, curr_date)

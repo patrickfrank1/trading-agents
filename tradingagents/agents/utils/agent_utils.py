@@ -8,6 +8,7 @@ from tradingagents.agents.utils.technical_indicators_tools import (
     get_indicators
 )
 from tradingagents.agents.utils.fundamental_data_tools import (
+    compute_dcf_analysis,
     get_fundamentals,
     get_balance_sheet,
     get_cashflow,
