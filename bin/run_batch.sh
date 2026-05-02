@@ -29,18 +29,18 @@ for i in "${!TICKERS[@]}"; do
 
     TICKER_START=$(date +%s)
 
-    if uv run tradingagents analyze \
+    if uv run tradingagents \
         --refresh-rate 0.1 \
         --non-interactive \
         --checkpoint \
         --display-report \
         --save \
+        --save-path "$RESULTS_DIR/$TICKER" \
         --ticker "$TICKER" \
         --research-depth deep \
         --provider glm \
         --shallow-model GLM-4.7 \
         --deep-model GLM-5.1 \
-        --save-path "$RESULTS_DIR/$TICKER" \
         2>&1 | tee "${RESULTS_DIR}/${TICKER}.log"; then
         STATUS="OK"
     else
