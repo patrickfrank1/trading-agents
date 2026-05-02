@@ -118,10 +118,40 @@ class StockstatsUtils:
         df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
         curr_date_str = pd.to_datetime(curr_date).strftime("%Y-%m-%d")
 
-        df[indicator]  # trigger stockstats to calculate the indicator
+        CUSTOM_INDICATORS = {"volume", "donchian_upper", "donchian_lower", "donchian_mid", "fibonacci"}
+
+        if indicator in CUSTOM_INDICATORS:
+            if indicator == "volume":
+                pass  # volume column already exists in stockstats wrapped data
+            elif indicator == "donchian_upper":
+                df[indicator] = df["high"].rolling(window=20, min_periods=1).max()
+            elif indicator == "donchian_lower":
+                df[indicator] = df["low"].rolling(window=20, min_periods=1).min()
+            elif indicator == "donchian_mid":
+                upper = df["high"].rolling(window=20, min_periods=1).max()
+                lower = df["low"].rolling(window=20, min_periods=1).min()
+                df[indicator] = (upper + lower) / 2
+            elif indicator == "fibonacci":
+                rolling_high = df["high"].rolling(window=60, min_periods=2).max()
+                rolling_low = df["low"].rolling(window=60, min_periods=2).min()
+                diff = rolling_high - rolling_low
+                df[indicator] = rolling_high - diff * 0.618  # store golden ratio level as representative value
+        else:
+            df[indicator]  # trigger stockstats to calculate the indicator
+
         matching_rows = df[df["Date"].str.startswith(curr_date_str)]
 
         if not matching_rows.empty:
+            if indicator == "fibonacci":
+                high_val = rolling_high.loc[matching_rows.index[0]]
+                low_val = rolling_low.loc[matching_rows.index[0]]
+                if pd.isna(high_val) or pd.isna(low_val):
+                    return "N/A"
+                parts = [f"High:{high_val:.2f}", f"Low:{low_val:.2f}"]
+                for level_name, level_pct in [("23.6%", 0.236), ("38.2%", 0.382), ("50.0%", 0.500), ("61.8%", 0.618), ("78.6%", 0.786)]:
+                    val = high_val - (high_val - low_val) * level_pct
+                    parts.append(f"{level_name}:{val:.2f}")
+                return " | ".join(parts)
             indicator_value = matching_rows[indicator].values[0]
             return indicator_value
         else:

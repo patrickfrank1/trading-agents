@@ -73,21 +73,27 @@ def get_stock_stats_indicators_window(
             "Usage: Capture quick shifts in momentum and potential entry points. "
             "Tips: Prone to noise in choppy markets; use alongside longer averages for filtering false signals."
         ),
-        # MACD Related
-        "macd": (
-            "MACD: Computes momentum via differences of EMAs. "
-            "Usage: Look for crossovers and divergence as signals of trend changes. "
-            "Tips: Confirm with other indicators in low-volatility or sideways markets."
+        # Price Channels
+        "donchian_upper": (
+            "Donchian Upper Channel: Highest high over a 20-period window. "
+            "Usage: Identify breakout levels and resistance; price above the upper channel signals upward momentum. "
+            "Tips: Best in trending markets; avoid in choppy/sideways conditions."
         ),
-        "macds": (
-            "MACD Signal: An EMA smoothing of the MACD line. "
-            "Usage: Use crossovers with the MACD line to trigger trades. "
-            "Tips: Should be part of a broader strategy to avoid false positives."
+        "donchian_lower": (
+            "Donchian Lower Channel: Lowest low over a 20-period window. "
+            "Usage: Identify support levels and breakdown zones; price below the lower channel signals downward momentum. "
+            "Tips: Combine with volume for confirmation."
         ),
-        "macdh": (
-            "MACD Histogram: Shows the gap between the MACD line and its signal. "
-            "Usage: Visualize momentum strength and spot divergence early. "
-            "Tips: Can be volatile; complement with additional filters in fast-moving markets."
+        "donchian_mid": (
+            "Donchian Mid-Channel: Average of the upper and lower Donchian channels. "
+            "Usage: Serves as a trend-neutral reference level. "
+            "Tips: Price above mid-channel suggests bullish bias, below suggests bearish bias."
+        ),
+        # Support/Resistance Levels
+        "fibonacci": (
+            "Fibonacci Retracement Levels: Key levels (23.6%, 38.2%, 50%, 61.8%, 78.6%) calculated from the period's high and low. "
+            "Usage: Identify potential support/resistance zones for pullback entries and trend reversals. "
+            "Tips: The 61.8% (golden ratio) level is the most significant; zones where Fibonacci and other indicators align are strongest."
         ),
         # Momentum Indicators
         "rsi": (
@@ -117,6 +123,11 @@ def get_stock_stats_indicators_window(
             "Tips: It's a reactive measure, so use it as part of a broader risk management strategy."
         ),
         # Volume-Based Indicators
+        "volume": (
+            "Volume: The actual number of shares traded per day — the only indicator not derived from price. "
+            "Usage: Confirm the strength of price moves; high volume on breakouts validates the move, low volume signals weak participation. "
+            "Tips: Compare to average volume to spot anomalies; volume precedes price."
+        ),
         "vwma": (
             "VWMA: A moving average weighted by volume. "
             "Usage: Confirm trends by integrating price action with volume data. "
@@ -125,7 +136,7 @@ def get_stock_stats_indicators_window(
         "mfi": (
             "MFI: The Money Flow Index is a momentum indicator that uses both price and volume to measure buying and selling pressure. "
             "Usage: Identify overbought (>80) or oversold (<20) conditions and confirm the strength of trends or reversals. "
-            "Tips: Use alongside RSI or MACD to confirm signals; divergence between price and MFI can indicate potential reversals."
+            "Tips: Use alongside RSI to confirm signals; divergence between price and MFI can indicate potential reversals."
         ),
     }
 
@@ -200,15 +211,47 @@ def _get_stock_stats_bulk(
     data = load_ohlcv(symbol, curr_date)
     df = wrap(data)
     df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
-    
-    # Calculate the indicator for all rows at once
-    df[indicator]  # This triggers stockstats to calculate the indicator
-    
-    # Create a dictionary mapping date strings to indicator values
+
+    CUSTOM_INDICATORS = {"volume", "donchian_upper", "donchian_lower", "donchian_mid", "fibonacci"}
+
+    if indicator in CUSTOM_INDICATORS:
+        if indicator == "volume":
+            df["volume"] = df["close"]  # stockstats lowercases; raw volume is already present
+        elif indicator == "donchian_upper":
+            df[indicator] = df["high"].rolling(window=20, min_periods=1).max()
+        elif indicator == "donchian_lower":
+            df[indicator] = df["low"].rolling(window=20, min_periods=1).min()
+        elif indicator == "donchian_mid":
+            upper = df["high"].rolling(window=20, min_periods=1).max()
+            lower = df["low"].rolling(window=20, min_periods=1).min()
+            df[indicator] = (upper + lower) / 2
+        elif indicator == "fibonacci":
+            rolling_high = df["high"].rolling(window=60, min_periods=2).max()
+            rolling_low = df["low"].rolling(window=60, min_periods=2).min()
+            diff = rolling_high - rolling_low
+            fib_levels = rolling_high - diff * pd.Series({
+                0.236: 0.236, 0.382: 0.382, 0.500: 0.500, 0.618: 0.618, 0.786: 0.786,
+            })
+    else:
+        df[indicator]  # This triggers stockstats to calculate the indicator
+
     result_dict = {}
-    for _, row in df.iterrows():
+    for idx, row in df.iterrows():
         date_str = row["Date"]
-        indicator_value = row[indicator]
+
+        if indicator == "fibonacci":
+            high_val = rolling_high.iloc[idx]
+            low_val = rolling_low.iloc[idx]
+            if pd.isna(high_val) or pd.isna(low_val):
+                result_dict[date_str] = "N/A"
+            else:
+                parts = [f"High:{high_val:.2f}", f"Low:{low_val:.2f}"]
+                for level_name, level_pct in [("23.6%", 0.236), ("38.2%", 0.382), ("50.0%", 0.500), ("61.8%", 0.618), ("78.6%", 0.786)]:
+                    val = high_val - (high_val - low_val) * level_pct
+                    parts.append(f"{level_name}:{val:.2f}")
+                result_dict[date_str] = " | ".join(parts)
+        else:
+            indicator_value = row[indicator]
         
         # Handle NaN/None values
         if pd.isna(indicator_value):

@@ -31,29 +31,25 @@ def get_indicator(
         "close_50_sma": ("50 SMA", "close"),
         "close_200_sma": ("200 SMA", "close"),
         "close_10_ema": ("10 EMA", "close"),
-        "macd": ("MACD", "close"),
-        "macds": ("MACD Signal", "close"),
-        "macdh": ("MACD Histogram", "close"),
         "rsi": ("RSI", "close"),
         "boll": ("Bollinger Middle", "close"),
         "boll_ub": ("Bollinger Upper Band", "close"),
         "boll_lb": ("Bollinger Lower Band", "close"),
         "atr": ("ATR", None),
-        "vwma": ("VWMA", "close")
+        "volume": ("Volume", None),
+        "vwma": ("VWMA", "close"),
     }
 
     indicator_descriptions = {
         "close_50_sma": "50 SMA: A medium-term trend indicator. Usage: Identify trend direction and serve as dynamic support/resistance. Tips: It lags price; combine with faster indicators for timely signals.",
         "close_200_sma": "200 SMA: A long-term trend benchmark. Usage: Confirm overall market trend and identify golden/death cross setups. Tips: It reacts slowly; best for strategic trend confirmation rather than frequent trading entries.",
         "close_10_ema": "10 EMA: A responsive short-term average. Usage: Capture quick shifts in momentum and potential entry points. Tips: Prone to noise in choppy markets; use alongside longer averages for filtering false signals.",
-        "macd": "MACD: Computes momentum via differences of EMAs. Usage: Look for crossovers and divergence as signals of trend changes. Tips: Confirm with other indicators in low-volatility or sideways markets.",
-        "macds": "MACD Signal: An EMA smoothing of the MACD line. Usage: Use crossovers with the MACD line to trigger trades. Tips: Should be part of a broader strategy to avoid false positives.",
-        "macdh": "MACD Histogram: Shows the gap between the MACD line and its signal. Usage: Visualize momentum strength and spot divergence early. Tips: Can be volatile; complement with additional filters in fast-moving markets.",
         "rsi": "RSI: Measures momentum to flag overbought/oversold conditions. Usage: Apply 70/30 thresholds and watch for divergence to signal reversals. Tips: In strong trends, RSI may remain extreme; always cross-check with trend analysis.",
         "boll": "Bollinger Middle: A 20 SMA serving as the basis for Bollinger Bands. Usage: Acts as a dynamic benchmark for price movement. Tips: Combine with the upper and lower bands to effectively spot breakouts or reversals.",
         "boll_ub": "Bollinger Upper Band: Typically 2 standard deviations above the middle line. Usage: Signals potential overbought conditions and breakout zones. Tips: Confirm signals with other tools; prices may ride the band in strong trends.",
         "boll_lb": "Bollinger Lower Band: Typically 2 standard deviations below the middle line. Usage: Indicates potential oversold conditions. Tips: Use additional analysis to avoid false reversal signals.",
         "atr": "ATR: Averages true range to measure volatility. Usage: Set stop-loss levels and adjust position sizes based on current market volatility. Tips: It's a reactive measure, so use it as part of a broader risk management strategy.",
+        "volume": "Volume: The actual number of shares traded per day — the only indicator not derived from price. Usage: Confirm the strength of price moves; high volume on breakouts validates the move, low volume signals weak participation. Tips: Compare to average volume to spot anomalies; volume precedes price.",
         "vwma": "VWMA: A moving average weighted by volume. Usage: Confirm trends by integrating price action with volume data. Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses."
     }
 
@@ -95,27 +91,6 @@ def get_indicator(
                 "symbol": symbol,
                 "interval": interval,
                 "time_period": "10",
-                "series_type": series_type,
-                "datatype": "csv"
-            })
-        elif indicator == "macd":
-            data = _make_api_request("MACD", {
-                "symbol": symbol,
-                "interval": interval,
-                "series_type": series_type,
-                "datatype": "csv"
-            })
-        elif indicator == "macds":
-            data = _make_api_request("MACD", {
-                "symbol": symbol,
-                "interval": interval,
-                "series_type": series_type,
-                "datatype": "csv"
-            })
-        elif indicator == "macdh":
-            data = _make_api_request("MACD", {
-                "symbol": symbol,
-                "interval": interval,
                 "series_type": series_type,
                 "datatype": "csv"
             })
@@ -163,7 +138,6 @@ def get_indicator(
 
         # Map internal indicator names to expected CSV column names from Alpha Vantage
         col_name_map = {
-            "macd": "MACD", "macds": "MACD_Signal", "macdh": "MACD_Hist",
             "boll": "Real Middle Band", "boll_ub": "Real Upper Band", "boll_lb": "Real Lower Band",
             "rsi": "RSI", "atr": "ATR", "close_10_ema": "EMA",
             "close_50_sma": "SMA", "close_200_sma": "SMA"

@@ -14,7 +14,7 @@ def get_indicators(
     Uses the configured technical_indicators vendor.
     Args:
         symbol (str): Ticker symbol of the company, e.g. AAPL, TSM
-        indicator (str): A single technical indicator name, e.g. 'rsi', 'macd'. Call this tool once per indicator.
+        indicator (str): A single technical indicator name, e.g. 'rsi', 'fibonacci', 'volume'. Call this tool once per indicator.
         curr_date (str): The current trading date you are trading on, YYYY-mm-dd
         look_back_days (int): How many days to look back, default is 30
     Returns:

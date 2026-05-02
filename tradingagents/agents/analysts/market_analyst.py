@@ -27,10 +27,13 @@ Moving Averages:
 - close_200_sma: 200 SMA: A long-term trend benchmark. Usage: Confirm overall market trend and identify golden/death cross setups. Tips: It reacts slowly; best for strategic trend confirmation rather than frequent trading entries.
 - close_10_ema: 10 EMA: A responsive short-term average. Usage: Capture quick shifts in momentum and potential entry points. Tips: Prone to noise in choppy markets; use alongside longer averages for filtering false signals.
 
-MACD Related:
-- macd: MACD: Computes momentum via differences of EMAs. Usage: Look for crossovers and divergence as signals of trend changes. Tips: Confirm with other indicators in low-volatility or sideways markets.
-- macds: MACD Signal: An EMA smoothing of the MACD line. Usage: Use crossovers with the MACD line to trigger trades. Tips: Should be part of a broader strategy to avoid false positives.
-- macdh: MACD Histogram: Shows the gap between the MACD line and its signal. Usage: Visualize momentum strength and spot divergence early. Tips: Can be volatile; complement with additional filters in fast-moving markets.
+Price Channels:
+- donchian_upper: Donchian Upper Channel: Highest high over a 20-period window. Usage: Identify breakout levels and resistance; price above the upper channel signals upward momentum. Tips: Best in trending markets; avoid in choppy/sideways conditions.
+- donchian_lower: Donchian Lower Channel: Lowest low over a 20-period window. Usage: Identify support levels and breakdown zones; price below the lower channel signals downward momentum. Tips: Combine with volume for confirmation.
+- donchian_mid: Donchian Mid-Channel: Average of the upper and lower Donchian channels. Usage: Serves as a trend-neutral reference level. Tips: Price above mid-channel suggests bullish bias, below suggests bearish bias.
+
+Support/Resistance Levels:
+- fibonacci: Fibonacci Retracement Levels: Key levels (23.6%, 38.2%, 50%, 61.8%, 78.6%) calculated from the period's high and low. Usage: Identify potential support/resistance zones for pullback entries and trend reversals. Tips: The 61.8% (golden ratio) level is the most significant; zones where Fibonacci and other indicators align are strongest.
 
 Momentum Indicators:
 - rsi: RSI: Measures momentum to flag overbought/oversold conditions. Usage: Apply 70/30 thresholds and watch for divergence to signal reversals. Tips: In strong trends, RSI may remain extreme; always cross-check with trend analysis.
@@ -42,6 +45,7 @@ Volatility Indicators:
 - atr: ATR: Averages true range to measure volatility. Usage: Set stop-loss levels and adjust position sizes based on current market volatility. Tips: It's a reactive measure, so use it as part of a broader risk management strategy.
 
 Volume-Based Indicators:
+- volume: Raw Trading Volume: The actual number of shares traded per day — the only indicator not derived from price. Usage: Confirm the strength of price moves; high volume on breakouts validates the move, low volume signals weak participation. Tips: Compare to average volume to spot anomalies; volume precedes price.
 - vwma: VWMA: A moving average weighted by volume. Usage: Confirm trends by integrating price action with volume data. Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses.
 
 - Select indicators that provide diverse and complementary information. Avoid redundancy (e.g., do not select both rsi and stochrsi). Also briefly explain why they are suitable for the given market context. When you tool call, please use the exact name of the indicators provided above as they are defined parameters, otherwise your call will fail. Please make sure to call get_stock_data first to retrieve the CSV that is needed to generate indicators. Then use get_indicators with the specific indicator names. Write a very detailed and nuanced report of the trends you observe. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."""
