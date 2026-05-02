@@ -29,6 +29,7 @@ from tradingagents.dataflows.config import set_config
 from tradingagents.agents.utils.agent_utils import (
     get_stock_data,
     get_indicators,
+    get_option_greeks,
     get_fundamentals,
     get_balance_sheet,
     get_cashflow,
@@ -169,10 +170,9 @@ class TradingAgentsGraph:
         return {
             "market": ToolNode(
                 [
-                    # Core stock data tools
                     get_stock_data,
-                    # Technical indicators
                     get_indicators,
+                    get_option_greeks,
                 ]
             ),
             "social": ToolNode(
