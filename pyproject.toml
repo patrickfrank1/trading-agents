@@ -30,13 +30,6 @@ dependencies = [
     "tqdm>=4.67.1",
     "typing-extensions>=4.14.0",
     "yfinance>=0.2.63",
-]
-
-[project.optional-dependencies]
-macro-vendors = [
-    "fredapi>=0.5.1",
-]
-all = [
     "fredapi>=0.5.1",
 ]
 

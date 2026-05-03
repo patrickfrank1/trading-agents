@@ -13,13 +13,28 @@ from tradingagents.agents.utils.macro_data_tools import (
     get_world_bank_data,
     get_ecb_data,
 )
+from tradingagents.dataflows.macro_vendors import (
+    fetch_vendor_data,
+    format_vendor_report,
+)
 
 
 def create_macro_analyst(llm):
 
     def macro_analyst_node(state):
+        import os as _os
+
         current_date = state["trade_date"]
         instrument_context = build_instrument_context(state["company_of_interest"])
+
+        fred_context = ""
+        fred_key = _os.environ.get("FRED_API_KEY", "")
+        if fred_key:
+            try:
+                fred_data = fetch_vendor_data("fred", api_key=fred_key, look_back_months=12)
+                fred_context = "\n\n" + format_vendor_report("fred", fred_data)
+            except Exception:
+                fred_context = ""
 
         tools = [
             get_cpi_data,
@@ -55,6 +70,7 @@ def create_macro_analyst(llm):
             "9. **Investment Implications**: Based on your macro analysis, discuss which asset classes, sectors, or investment styles may benefit or suffer in the current environment. Consider interest rate sensitivity, growth vs. value dynamics, risk appetite, and macro regime.\n"
             "10. **Risks to the Outlook**: Identify key risks that could shift the macro landscape (e.g., unexpected inflation data, geopolitical events, policy surprises, commodity shocks).\n\n"
             "Call each tool at least once to gather data before writing your report. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            + fred_context
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
             + get_language_instruction()
         )

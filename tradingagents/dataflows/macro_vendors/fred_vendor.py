@@ -23,6 +23,8 @@ SERIES_IDS = {
     "unemployment": "UNRATE",
     "nonfarm_payrolls": "PAYEMS",
     "fed_funds_rate": "FEDFUNDS",
+    "fed_target_upper": "DFEDTARU",
+    "fed_target_lower": "DFEDTARL",
     "treasury_10y": "DGS10",
     "treasury_2y": "DGS2",
     "treasury_3mo": "DGS3MO",
@@ -104,8 +106,18 @@ def _add_derived(data: dict):
     if "latest_value" in t10 and "latest_value" in t3m:
         derived["10y_3mo_spread"] = round(t10["latest_value"] - t3m["latest_value"], 4)
     ff = data.get("fed_funds_rate", {})
+    tu = data.get("fed_target_upper", {})
+    tl = data.get("fed_target_lower", {})
     if "latest_value" in ff:
         derived["fed_funds"] = ff["latest_value"]
+    if "latest_value" in tu and "latest_value" in tl:
+        derived["fed_target_range"] = f"{tl['latest_value']:.2f}% - {tu['latest_value']:.2f}%"
+        derived["fed_target_midpoint"] = round((tu["latest_value"] + tl["latest_value"]) / 2, 4)
+        derived["fed_target_width"] = round(tu["latest_value"] - tl["latest_value"], 4)
+    if "latest_value" in ff and "latest_value" in tu and "latest_value" in tl:
+        within = tl["latest_value"] <= ff["latest_value"] <= tu["latest_value"]
+        derived["fed_funds_within_target"] = within
+        derived["fed_funds_vs_midpoint_bps"] = round((ff["latest_value"] - derived["fed_target_midpoint"]) * 100, 1)
     cpi = data.get("cpi", {})
     if "change" in cpi:
         derived["cpi_monthly_change"] = cpi["change"]
@@ -140,7 +152,16 @@ def format_fred_report(data: dict) -> str:
     lines.append("## Monetary Policy")
     ff = data.get("fed_funds_rate", {})
     if "latest_value" in ff and "error" not in ff:
-        lines.append(f"- **Fed Funds Rate**: {ff['latest_value']:.2f}% (as of {ff['latest_date']})")
+        lines.append(f"- **Fed Funds Rate (Effective)**: {ff['latest_value']:.2f}% (as of {ff['latest_date']})")
+    if "fed_target_range" in derived:
+        lines.append(f"- **FOMC Target Range**: {derived['fed_target_range']}")
+    if "fed_target_width" in derived:
+        lines.append(f"- **Target Range Width**: {derived['fed_target_width']:.2f}%")
+    if "fed_funds_within_target" in derived:
+        status = "within" if derived["fed_funds_within_target"] else "outside"
+        lines.append(f"- **Effective Rate vs Target**: {status} range")
+    if "fed_funds_vs_midpoint_bps" in derived:
+        lines.append(f"- **Effective Rate vs Midpoint**: {derived['fed_funds_vs_midpoint_bps']:+.1f} bps")
     t10 = data.get("treasury_10y", {})
     if "latest_value" in t10 and "error" not in t10:
         lines.append(f"- **10Y Treasury**: {t10['latest_value']:.2f}%")

@@ -2,6 +2,8 @@
 
 Fetches key Eurozone indicators via the ECB SDMX REST API (no API key
 required).  Results are cached on disk with a 7-day TTL.
+
+API reference: https://data.ecb.europa.eu/help/api/data
 """
 
 import logging
@@ -13,39 +15,39 @@ from .cache import cached_fetch, rate_limited_iter
 
 logger = logging.getLogger(__name__)
 
-ECB_SDMX_BASE = "https://sdw-wsrest.ecb.europa.eu/service/data"
+ECB_SDMX_BASE = "https://data-api.ecb.europa.eu/service/data"
 
 ECB_DATASETS = {
-    "euribor_3m": {
-        "key": "FM/D.U2.EUR.4F.KR.MRR_FR.LEV",
-        "label": "3-Month EURIBOR (%)",
-    },
-    "eonia": {
-        "key": "FM/D.U2.EUR.4F.KR.DF.LEV",
-        "label": "EONIA / Euro Short-Term Rate (%)",
-    },
     "deposit_facility": {
-        "key": "FM/D.U2.EUR.4F.KR.DFT.LEV",
+        "key": "FM/D.U2.EUR.4F.KR.DFR.LEV",
         "label": "ECB Deposit Facility Rate (%)",
     },
+    "eonia": {
+        "key": "FM/M.U2.EUR.4F.MM.UONSTR.HSTA",
+        "label": "Euro Short-Term Rate (€STR) (%)",
+    },
+    "euribor_3m": {
+        "key": "FM/M.U2.EUR.RT.MM.EURIBOR3MD_.HSTA",
+        "label": "3-Month EURIBOR (%)",
+    },
     "lending_facility": {
-        "key": "FM/D.U2.EUR.4F.KR.LFT.LEV",
+        "key": "FM/D.U2.EUR.4F.KR.MLFR.LEV",
         "label": "ECB Marginal Lending Facility Rate (%)",
-    },
-    "industrial_production": {
-        "key": "STS/M.I8.Y.U2.15.0000.4.ANR",
-        "label": "Euro Area Industrial Production (Y/Y % change)",
-    },
-    "retail_trade": {
-        "key": "STS/M.RT.Y.U2.15.0000.4.ANR",
-        "label": "Euro Area Retail Trade (Y/Y % change)",
     },
     "hicp_inflation": {
         "key": "ICP/M.U2.N.000000.4.ANR",
         "label": "Euro Area HICP Inflation (Y/Y % change)",
     },
+    "industrial_production": {
+        "key": "STS/M.I9.N.PROD.NS0010.4.000",
+        "label": "Euro Area Industrial Production Index",
+    },
+    "retail_trade": {
+        "key": "STS/M.I9.W.TOVV.2G4700.4.000",
+        "label": "Euro Area Retail Trade Index",
+    },
     "unemployment": {
-        "key": "LFS/Q.U.N.S14.S.C.LT.GD.A._Z.0000.V._T._Z.E._Z._Z.SV_START._T._Z.SV_END",
+        "key": "AME/A.EA20.1.0.0.0.ZUTN",
         "label": "Euro Area Unemployment Rate (%)",
     },
 }
@@ -55,7 +57,7 @@ _RATE_LIMIT_DELAY = 3.0
 
 def _ecb_request(dataflow_key: str) -> dict:
     url = f"{ECB_SDMX_BASE}/{dataflow_key}"
-    params = {"detail": "dataonly", "format": "sdmx-json"}
+    params = {"format": "jsondata"}
     resp = requests.get(url, params=params, timeout=30)
     resp.raise_for_status()
     return resp.json()
@@ -64,23 +66,35 @@ def _ecb_request(dataflow_key: str) -> dict:
 def _parse_ecb_observations(data: dict) -> list:
     observations = []
     try:
-        obs_map = data.get("data", {}).get("dataSets", [{}])[0].get("observations", {})
-        if not obs_map:
+        series_map = data.get("dataSets", [{}])[0].get("series", {})
+        time_dims = (
+            data.get("structure", {})
+            .get("dimensions", {})
+            .get("observation", [])
+        )
+        if not series_map or not time_dims:
             return []
-        dims = data.get("data", {}).get("structure", {}).get("dimensions", {}).get("observation", [])
-        time_idx = len(dims) - 1
 
-        for obs_key in sorted(obs_map.keys(), reverse=True):
-            parts = obs_key.split(":")
-            time_period = parts[time_idx] if time_idx < len(parts) else parts[-1]
-            values = obs_map[obs_key]
-            val = values[0] if values else None
-            if val is None or val == "":
-                continue
-            try:
-                observations.append({"period": time_period, "value": float(val)})
-            except (ValueError, TypeError):
-                continue
+        time_dim = time_dims[0]
+        time_values = time_dim.get("values", [])
+
+        for _skey, sdata in series_map.items():
+            obs_list = sdata.get("observations", {})
+            for obs_idx_str, values in sorted(
+                obs_list.items(), key=lambda x: int(x[0]), reverse=True
+            ):
+                obs_idx = int(obs_idx_str)
+                if obs_idx < len(time_values):
+                    time_id = time_values[obs_idx].get("id", str(obs_idx))
+                else:
+                    time_id = str(obs_idx)
+                val = values[0] if values else None
+                if val is None or val == "":
+                    continue
+                try:
+                    observations.append({"period": time_id, "value": float(val)})
+                except (ValueError, TypeError):
+                    continue
     except (IndexError, KeyError, TypeError):
         pass
     return observations
