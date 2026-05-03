@@ -23,6 +23,8 @@ Key points to focus on:
 - Bear Counterpoints: Critically analyze the bear argument with specific data and sound reasoning, addressing concerns thoroughly and showing why the bull perspective holds stronger merit.
 - Engagement: Present your argument in a conversational style, engaging directly with the bear analyst's points and debating effectively rather than just listing data.
 
+Analyst report priority (highest to lowest): Business analyst and Fundamentals analyst carry the most weight — anchor your argument primarily on business fundamentals, competitive positioning, and financial health. Market research (technical indicators, price action) carries the lowest weight — use it only as supplementary context. News and macro reports are intermediate priority.
+
 Resources available:
 Market research report: {market_research_report}
 Social media sentiment report: {sentiment_report}

@@ -24,6 +24,8 @@ Key points to focus on:
 - Bull Counterpoints: Critically analyze the bull argument with specific data and sound reasoning, exposing weaknesses or over-optimistic assumptions.
 - Engagement: Present your argument in a conversational style, directly engaging with the bull analyst's points and debating effectively rather than simply listing facts.
 
+Analyst report priority (highest to lowest): Business analyst and Fundamentals analyst carry the most weight — anchor your argument primarily on business fundamentals, competitive positioning, and financial health. Market research (technical indicators, price action) carries the lowest weight — use it only as supplementary context. News and macro reports are intermediate priority.
+
 Resources available:
 
 Market research report: {market_research_report}
