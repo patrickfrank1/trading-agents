@@ -210,7 +210,7 @@ def _html_to_text(html: str) -> str:
 
 def _find_all_item_headers(text: str) -> list:
     positions = []
-    for m in re.finditer(r"item\s+(\d+[a-z]?)\s*\.\s*", text, re.IGNORECASE):
+    for m in re.finditer(r"item\s+(\d+[a-z]?)\s*[.:]?\s*(?=[A-Z])", text, re.IGNORECASE):
         item_num = m.group(1).lower()
         positions.append((m.start(), m.end(), item_num))
     return positions
@@ -268,6 +268,17 @@ def _extract_sections(text: str, max_chars: int = 6000, section_defs: dict = Non
 
     return sections
 
+
+_20F_SECTION_DEFS = {
+    "3": "Item 3: Key Information",
+    "4": "Item 4: Information on the Company",
+    "5": "Item 5: Operating and Financial Review and Prospects",
+    "6": "Item 6: Directors, Senior Management and Employees",
+    "7": "Item 7: Major Shareholders and Related Party Transactions",
+    "8": "Item 8: Financial Information",
+    "11": "Item 11: Quantitative and Qualitative Disclosures About Market Risk",
+    "12": "Item 12: Description of Securities Other Than Equity Securities",
+}
 
 _10Q_SECTION_DEFS = {
     "1": "Item 1: Financial Statements",
@@ -358,10 +369,15 @@ def get_10k_filing_data(
 
         all_results = []
         for filing in filings:
+            section_defs = (
+                _20F_SECTION_DEFS
+                if filing["form_type"].startswith("20-F")
+                else None
+            )
             all_results.append(
                 _fetch_and_format_filing(
                     ticker, filing,
-                    section_defs=None,
+                    section_defs=section_defs,
                     max_chars=6000,
                 )
             )
@@ -509,3 +525,121 @@ def get_8k_filing_data(
         return f"Error fetching SEC 8-K filing for {ticker}: Network error - {e}"
     except Exception as e:
         return f"Error fetching SEC 8-K filing for {ticker}: {e}"
+
+
+def get_20f_filing_data(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
+) -> str:
+    """Fetch the last 2 available 20-F annual report filings from SEC EDGAR.
+    20-F is filed by foreign private issuers instead of 10-K. Returns key sections
+    including Key Information, Information on the Company, Operating and Financial
+    Review and Prospects, and Financial Information.
+    """
+    try:
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return (
+                f"Could not find SEC CIK for ticker '{ticker}'. "
+                f"The company may not file with the SEC."
+            )
+
+        filings = _find_filings(
+            cik,
+            {"20-F", "20-F/A"},
+            max_filings=2,
+            before_date=curr_date,
+        )
+
+        if not filings:
+            return (
+                f"No 20-F annual filings found for {ticker} (CIK: {cik}) "
+                f"on SEC EDGAR. If this is a US company, try get_10k_filing instead."
+            )
+
+        all_results = []
+        for filing in filings:
+            all_results.append(
+                _fetch_and_format_filing(
+                    ticker, filing,
+                    section_defs=_20F_SECTION_DEFS,
+                    max_chars=6000,
+                )
+            )
+
+        return "\n\n---\n\n".join(all_results)
+
+    except urllib.error.URLError as e:
+        return f"Error fetching SEC 20-F filing for {ticker}: Network error - {e}"
+    except Exception as e:
+        return f"Error fetching SEC 20-F filing for {ticker}: {e}"
+
+
+def get_6k_filing_data(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
+    max_filings: int = 3,
+) -> str:
+    """Fetch the last available 6-K reports from SEC EDGAR.
+    6-K is filed by foreign private issuers to disclose material information
+    (equivalent to a combination of 8-K and 10-Q for US companies). Common
+    contents include earnings results, interim financial statements, material
+    events, and other periodic disclosures.
+    """
+    try:
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return (
+                f"Could not find SEC CIK for ticker '{ticker}'. "
+                f"The company may not file with the SEC."
+            )
+
+        filings = _find_filings(
+            cik,
+            {"6-K", "6-K/A"},
+            max_filings=max_filings,
+            before_date=curr_date,
+        )
+
+        if not filings:
+            return (
+                f"No 6-K reports found for {ticker} (CIK: {cik}) "
+                f"on SEC EDGAR. If this is a US company, try get_8k_filing "
+                f"or get_10q_filing instead."
+            )
+
+        all_results = []
+        for filing in filings:
+            cached = _load_filing_cache(ticker, filing["accession"])
+            if cached is not None:
+                all_results.append(cached)
+                continue
+
+            html_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
+            plain_text = _html_to_text(html_data)
+
+            max_chars = 8000
+            truncated = plain_text[:max_chars]
+            if len(plain_text) > max_chars:
+                truncated += "\n\n[... filing truncated ...]"
+
+            lines = [
+                f"# SEC 6-K Report: {ticker.upper()} ({filing['form_type']})",
+                f"Filing Date: {filing['filing_date']}",
+                f"Accession: {filing['accession']}",
+                f"Source: {filing['document_url']}",
+                f"Retrieved: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "",
+                truncated,
+            ]
+
+            result = "\n".join(lines)
+            _save_filing_cache(ticker, filing["accession"], result)
+            all_results.append(result)
+
+        return "\n\n---\n\n".join(all_results)
+
+    except urllib.error.URLError as e:
+        return f"Error fetching SEC 6-K filing for {ticker}: Network error - {e}"
+    except Exception as e:
+        return f"Error fetching SEC 6-K filing for {ticker}: {e}"

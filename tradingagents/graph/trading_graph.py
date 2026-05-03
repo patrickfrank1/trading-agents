@@ -61,6 +61,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_10k_filing,
     get_10q_filing,
     get_8k_filing,
+    get_20f_filing,
+    get_6k_filing,
 )
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -243,6 +245,8 @@ class TradingAgentsGraph:
                     get_10k_filing,
                     get_10q_filing,
                     get_8k_filing,
+                    get_20f_filing,
+                    get_6k_filing,
                 ]
             ),
         }

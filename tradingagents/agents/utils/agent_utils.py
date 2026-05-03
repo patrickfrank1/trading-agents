@@ -48,6 +48,8 @@ from tradingagents.agents.utils.business_data_tools import (
     get_10k_filing,
     get_10q_filing,
     get_8k_filing,
+    get_20f_filing,
+    get_6k_filing,
 )
 
 

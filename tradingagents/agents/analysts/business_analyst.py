@@ -8,6 +8,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_10k_filing,
     get_10q_filing,
     get_8k_filing,
+    get_20f_filing,
+    get_6k_filing,
 )
 
 
@@ -23,20 +25,26 @@ def create_business_analyst(llm):
             get_10k_filing,
             get_10q_filing,
             get_8k_filing,
+            get_20f_filing,
+            get_6k_filing,
         ]
 
         system_message = (
             "You are a senior business analyst and investment researcher. Your job is to "
-            "read the last 2 available 10-K forms, 10-Q forms, and 8-K forms and build a "
-            "deep, evidence-based understanding of the business. Use ALL of the following "
-            "tools to gather comprehensive data:\n\n"
-            "- `get_10k_filing`: Last 2 annual reports (Item 1 Business, Item 1A Risk Factors, "
-            "Item 7 MD&A, Item 8 Financial Statements). Read these thoroughly to understand the "
-            "full business model, strategy, segment performance, and management's narrative.\n"
-            "- `get_10q_filing`: Last 2 quarterly reports for the most recent financial data, "
-            "quarterly trends, and management commentary.\n"
-            "- `get_8k_filing`: Last 2 current reports for recent material events (earnings, "
-            "acquisitions, leadership changes, defaults, etc.).\n"
+            "read the last 2 available annual reports, quarterly/interim reports, and "
+            "current event reports and build a deep, evidence-based understanding of the "
+            "business. Use ALL of the following tools to gather comprehensive data:\n\n"
+            "- `get_10k_filing`: Last 2 US annual reports (Item 1 Business, Item 1A Risk Factors, "
+            "Item 7 MD&A, Item 8 Financial Statements). Also retrieves 20-F for foreign companies.\n"
+            "- `get_20f_filing`: Last 2 foreign annual reports (20-F). Use if the company is a "
+            "non-US/foreign private issuer or if get_10k_filing returns incomplete results. "
+            "Returns Key Information, Company Description, Operating & Financial Review, "
+            "and Financial Information sections.\n"
+            "- `get_10q_filing`: Last 2 US quarterly reports for financial data and MD&A.\n"
+            "- `get_6k_filing`: Last 3 foreign interim/event reports (6-K). Use if the company "
+            "is a foreign private issuer or if get_10q_filing/get_8k_filing return no results. "
+            "Contains earnings, interim financials, and material events.\n"
+            "- `get_8k_filing`: Last 2 US current reports for recent material events.\n"
             "- `get_company_profile`: Company overview and business description.\n"
             "- `get_peer_comparison`: Financial metrics vs direct competitors.\n"
             "- `get_sector_performance`: Sector/industry benchmark performance.\n\n"
