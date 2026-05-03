@@ -59,6 +59,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_sector_performance,
     get_peer_comparison,
     get_10k_filing,
+    get_10q_filing,
+    get_8k_filing,
 )
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -239,6 +241,8 @@ class TradingAgentsGraph:
                     get_sector_performance,
                     get_peer_comparison,
                     get_10k_filing,
+                    get_10q_filing,
+                    get_8k_filing,
                 ]
             ),
         }

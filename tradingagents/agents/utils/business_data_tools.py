@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 from typing import Annotated
 from tradingagents.dataflows.interface import route_to_vendor
-from tradingagents.dataflows.sec_edgar import get_10k_filing_data
+from tradingagents.dataflows.sec_edgar import get_10k_filing_data, get_10q_filing_data, get_8k_filing_data
 
 
 @tool
@@ -60,8 +60,8 @@ def get_10k_filing(
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
 ) -> str:
     """
-    Retrieve the most recent 10-K (or 20-F for foreign companies) annual report
-    filing from SEC EDGAR. Returns key sections: Business (Item 1), Risk Factors
+    Retrieve the last 2 available 10-K (or 20-F for foreign companies) annual report
+    filings from SEC EDGAR. Returns key sections: Business (Item 1), Risk Factors
     (Item 1A), Selected Financial Data (Item 6), Management's Discussion & Analysis
     (Item 7), and Financial Statements (Item 8). Use this to understand the
     company's detailed business model, competitive positioning, risks, and
@@ -71,6 +71,47 @@ def get_10k_filing(
         ticker (str): Ticker symbol of the company
         curr_date (str): Current date you are trading at, yyyy-mm-dd (optional)
     Returns:
-        str: Key sections from the latest 10-K/20-F annual filing
+        str: Key sections from the last 2 10-K/20-F annual filings
     """
     return get_10k_filing_data(ticker, curr_date)
+
+
+@tool
+def get_10q_filing(
+    ticker: Annotated[str, "ticker symbol"],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+) -> str:
+    """
+    Retrieve the last 2 available 10-Q quarterly report filings from SEC EDGAR.
+    Returns Financial Statements, Management's Discussion & Analysis (MD&A),
+    and Risk Factors. Use this to understand quarterly financial performance,
+    segment results, management commentary on recent trends, and seasonal patterns.
+
+    Args:
+        ticker (str): Ticker symbol of the company
+        curr_date (str): Current date you are trading at, yyyy-mm-dd (optional)
+    Returns:
+        str: Key sections from the last 2 10-Q quarterly filings
+    """
+    return get_10q_filing_data(ticker, curr_date)
+
+
+@tool
+def get_8k_filing(
+    ticker: Annotated[str, "ticker symbol"],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+) -> str:
+    """
+    Retrieve the last 2 available 8-K current report filings from SEC EDGAR.
+    8-K filings disclose major corporate events such as earnings results,
+    acquisitions, divestitures, leadership changes, debt defaults, and other
+    material events. Use this to understand recent significant developments
+    that may affect the investment thesis.
+
+    Args:
+        ticker (str): Ticker symbol of the company
+        curr_date (str): Current date you are trading at, yyyy-mm-dd (optional)
+    Returns:
+        str: All identified sections from the last 2 8-K current report filings
+    """
+    return get_8k_filing_data(ticker, curr_date)

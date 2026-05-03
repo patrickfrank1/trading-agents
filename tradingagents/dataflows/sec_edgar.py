@@ -109,12 +109,17 @@ def _ticker_to_cik(ticker: str) -> Optional[str]:
     return None
 
 
-def _find_latest_annual_filing(cik: str) -> Optional[dict]:
+def _find_filings(
+    cik: str,
+    form_types: set,
+    max_filings: int = 2,
+    before_date: str = None,
+) -> list:
     url = f"{DATA_API}/submissions/CIK{cik}.json"
     try:
         data = json.loads(_sec_request(url))
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError):
-        return None
+        return []
 
     recent = data.get("filings", {}).get("recent", {})
     forms = recent.get("form", [])
@@ -122,23 +127,36 @@ def _find_latest_annual_filing(cik: str) -> Optional[dict]:
     primary_docs = recent.get("primaryDocument", [])
     filing_dates = recent.get("filingDate", [])
 
-    annual_forms = {"10-K", "10-K/A", "20-F", "20-F/A"}
+    results = []
+    seen_accessions = set()
 
     for i, form in enumerate(forms):
-        if form in annual_forms:
+        if form in form_types:
+            if filing_dates[i] in seen_accessions:
+                continue
+            if before_date and filing_dates[i] > before_date:
+                continue
             accession_clean = accessions[i].replace("-", "")
             doc_url = (
                 f"{EDGAR_BASE}/Archives/edgar/data/{cik}/"
                 f"{accession_clean}/{primary_docs[i]}"
             )
-            return {
+            results.append({
                 "form_type": form,
                 "filing_date": filing_dates[i],
                 "accession": accessions[i],
                 "document_url": doc_url,
-            }
+            })
+            seen_accessions.add(filing_dates[i])
+            if len(results) >= max_filings:
+                break
 
-    return None
+    return results
+
+
+def _find_latest_annual_filing(cik: str) -> Optional[dict]:
+    filings = _find_filings(cik, {"10-K", "10-K/A", "20-F", "20-F/A"}, max_filings=1)
+    return filings[0] if filings else None
 
 
 def _filing_cache_path(ticker: str, accession: str) -> Path:
@@ -179,8 +197,8 @@ def _html_to_text(html: str) -> str:
     text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
-    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
-    text = re.sub(r"</?(p|div|li|tr|h[1-6])[^>]*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<div[^>]*display\s*:\s*none[^>]*>.*?</div>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<ix:.*?>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<[^>]+>", "", text)
     text = html_module.unescape(text)
     text = re.sub(r"\u00a0", " ", text)
@@ -190,50 +208,60 @@ def _html_to_text(html: str) -> str:
     return text.strip()
 
 
-def _find_all_item_positions(text: str) -> list:
-    all_items = []
-    for m in re.finditer(
-        r"item\s+(\d+[a-z]?)\s*[\.\)]\s+(.{0,200})", text, re.IGNORECASE
-    ):
+def _find_all_item_headers(text: str) -> list:
+    positions = []
+    for m in re.finditer(r"item\s+(\d+[a-z]?)\s*\.\s*", text, re.IGNORECASE):
         item_num = m.group(1).lower()
-        label = m.group(2).strip()
-        all_items.append((m.start(), item_num, label))
-    return all_items
+        positions.append((m.start(), m.end(), item_num))
+    return positions
 
 
-def _extract_sections(text: str, max_chars: int = 6000) -> dict:
-    all_items = _find_all_item_positions(text)
+def _extract_sections(text: str, max_chars: int = 6000, section_defs: dict = None) -> dict:
+    if section_defs is None:
+        section_defs = {
+            "1": "Item 1: Business",
+            "1a": "Item 1A: Risk Factors",
+            "1b": "Item 1B: Unresolved Staff Comments",
+            "2": "Item 2: Properties",
+            "6": "Item 6: Selected Financial Data",
+            "7": "Item 7: Management's Discussion & Analysis",
+            "7a": "Item 7A: Quantitative Disclosures",
+            "8": "Item 8: Financial Statements",
+        }
 
-    section_defs = {
-        "1": "Item 1: Business",
-        "1a": "Item 1A: Risk Factors",
-        "1b": "Item 1B: Unresolved Staff Comments",
-        "2": "Item 2: Properties",
-        "6": "Item 6: Selected Financial Data",
-        "7": "Item 7: Management's Discussion & Analysis",
-        "7a": "Item 7A: Quantitative Disclosures",
-        "8": "Item 8: Financial Statements",
-    }
+    headers = _find_all_item_headers(text)
 
-    section_starts = {}
-    for pos, item_num, label in all_items:
-        if item_num in section_defs:
-            section_starts[item_num] = pos
-
-    if not section_starts:
+    if not headers:
         return {"Full Filing (truncated)": text[:max_chars]}
 
-    sorted_items = sorted(all_items, key=lambda x: x[0])
+    sorted_headers = sorted(headers, key=lambda x: x[0])
+
+    def section_length(start: int) -> int:
+        for h_start, _, h_num in sorted_headers:
+            if h_start > start + 200:
+                return h_start - start
+        return len(text) - start
+
+    best = {}
+    for pos, end, num in headers:
+        if num not in section_defs:
+            continue
+        slen = section_length(end)
+        if num not in best or slen > best[num][1]:
+            best[num] = (pos, slen)
+
+    if not best:
+        return {"Full Filing (truncated)": text[:max_chars]}
 
     sections = {}
-    for num, start_pos in section_starts.items():
+    for num, (pos, _) in best.items():
         end_pos = len(text)
-        for item_pos, item_num, _ in sorted_items:
-            if item_pos > start_pos + 500 and item_num != num:
-                end_pos = item_pos
+        for h_start, _, h_num in sorted_headers:
+            if h_start > pos + 200 and h_num != num:
+                end_pos = h_start
                 break
 
-        chunk = text[start_pos:end_pos].strip()
+        chunk = text[pos:end_pos].strip()
         if len(chunk) > max_chars:
             chunk = chunk[:max_chars] + "\n\n[... section truncated ...]"
         sections[section_defs[num]] = chunk
@@ -241,13 +269,70 @@ def _extract_sections(text: str, max_chars: int = 6000) -> dict:
     return sections
 
 
+_10Q_SECTION_DEFS = {
+    "1": "Item 1: Financial Statements",
+    "2": "Item 2: Management's Discussion & Analysis",
+    "3": "Item 3: Quantitative and Qualitative Disclosures About Market Risk",
+    "4": "Item 4: Controls and Procedures",
+    "1a": "Part I, Item 1A: Risk Factors (if included)",
+}
+
+_8K_SECTION_DEFS = {
+    "1.01": "Item 1.01: Entry into a Material Definitive Agreement",
+    "1.02": "Item 1.02: Termination of a Material Definitive Agreement",
+    "2.01": "Item 2.01: Completion of Acquisition or Disposition of Assets",
+    "2.02": "Item 2.02: Results of Operations and Financial Condition",
+    "2.03": "Item 2.03: Creation of a Direct Financial Obligation",
+    "2.04": "Item 2.04: Triggering Events That Accelerate or Increase a Direct Financial Obligation",
+    "2.05": "Item 2.05: Costs Associated with Exit or Disposal Activities",
+    "2.06": "Item 2.06: Material Impairments",
+    "5.02": "Item 5.02: Departure of Directors or Certain Officers",
+    "5.03": "Item 5.03: Amendments to Articles of Incorporation or Bylaws",
+    "7.01": "Item 7.01: Regulation FD Disclosure",
+    "8.01": "Item 8.01: Other Events",
+    "9.01": "Item 9.01: Financial Statements and Exhibits",
+}
+
+_8K_ITEM_PATTERN = re.compile(
+    r"item\s+(\d+\.\d+)\s*[\.\)]\s+(.{0,200})", re.IGNORECASE
+)
+
+
+def _fetch_and_format_filing(ticker: str, filing: dict, section_defs: dict, max_chars: int) -> str:
+    cached = _load_filing_cache(ticker, filing["accession"])
+    if cached is not None:
+        return cached
+
+    html_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
+    plain_text = _html_to_text(html_data)
+    sections = _extract_sections(plain_text, max_chars=max_chars, section_defs=section_defs)
+
+    lines = [
+        f"# SEC Filing: {ticker.upper()} ({filing['form_type']})",
+        f"Filing Date: {filing['filing_date']}",
+        f"Accession: {filing['accession']}",
+        f"Source: {filing['document_url']}",
+        f"Retrieved: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+    ]
+
+    for section_name, content in sections.items():
+        lines.append(f"## {section_name}")
+        lines.append(content)
+        lines.append("")
+
+    result = "\n".join(lines)
+    _save_filing_cache(ticker, filing["accession"], result)
+    return result
+
+
 def get_10k_filing_data(
     ticker: Annotated[str, "ticker symbol of the company"],
     curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
 ) -> str:
-    """Fetch the most recent 10-K (or 20-F for foreign companies) annual report
-    filing from SEC EDGAR. Returns key sections including Business, Risk Factors,
-    and Management's Discussion & Analysis.
+    """Fetch the last 2 available 10-K (or 20-F for foreign companies) annual report
+    filings from SEC EDGAR. Returns key sections including Business, Risk Factors,
+    Management's Discussion & Analysis, and Financial Statements.
     """
     try:
         cik = _ticker_to_cik(ticker)
@@ -258,43 +343,169 @@ def get_10k_filing_data(
                 f"not on EDGAR, or a privately held company)."
             )
 
-        filing = _find_latest_annual_filing(cik)
-        if not filing:
+        filings = _find_filings(
+            cik,
+            {"10-K", "20-F"},
+            max_filings=2,
+            before_date=curr_date,
+        )
+
+        if not filings:
             return (
                 f"No 10-K or 20-F annual filings found for {ticker} (CIK: {cik}) "
                 f"on SEC EDGAR. The company may be newly listed or may not file annual reports."
             )
 
-        cached = _load_filing_cache(ticker, filing["accession"])
-        if cached is not None:
-            return cached
+        all_results = []
+        for filing in filings:
+            all_results.append(
+                _fetch_and_format_filing(
+                    ticker, filing,
+                    section_defs=None,
+                    max_chars=6000,
+                )
+            )
 
-        html_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
-        plain_text = _html_to_text(html_data)
-
-        sections = _extract_sections(plain_text)
-
-        lines = [
-            f"# SEC Annual Filing: {ticker.upper()} ({filing['form_type']})",
-            f"Filing Date: {filing['filing_date']}",
-            f"Accession: {filing['accession']}",
-            f"Source: {filing['document_url']}",
-            f"Retrieved: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "",
-        ]
-
-        for section_name, content in sections.items():
-            lines.append(f"## {section_name}")
-            lines.append(content)
-            lines.append("")
-
-        result = "\n".join(lines)
-
-        _save_filing_cache(ticker, filing["accession"], result)
-
-        return result
+        return "\n\n---\n\n".join(all_results)
 
     except urllib.error.URLError as e:
         return f"Error fetching SEC filing for {ticker}: Network error - {e}"
     except Exception as e:
         return f"Error fetching SEC filing for {ticker}: {e}"
+
+
+def get_10q_filing_data(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
+) -> str:
+    """Fetch the last 2 available 10-Q quarterly report filings from SEC EDGAR.
+    Returns Financial Statements, MD&A, and Risk Factor sections.
+    """
+    try:
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return (
+                f"Could not find SEC CIK for ticker '{ticker}'. "
+                f"The company may not file with the SEC."
+            )
+
+        filings = _find_filings(
+            cik,
+            {"10-Q", "10-Q/A"},
+            max_filings=2,
+            before_date=curr_date,
+        )
+
+        if not filings:
+            return (
+                f"No 10-Q quarterly filings found for {ticker} (CIK: {cik}) "
+                f"on SEC EDGAR."
+            )
+
+        all_results = []
+        for filing in filings:
+            all_results.append(
+                _fetch_and_format_filing(
+                    ticker, filing,
+                    section_defs=_10Q_SECTION_DEFS,
+                    max_chars=6000,
+                )
+            )
+
+        return "\n\n---\n\n".join(all_results)
+
+    except urllib.error.URLError as e:
+        return f"Error fetching SEC 10-Q filing for {ticker}: Network error - {e}"
+    except Exception as e:
+        return f"Error fetching SEC 10-Q filing for {ticker}: {e}"
+
+
+def get_8k_filing_data(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
+) -> str:
+    """Fetch the last 2 available 8-K current report filings from SEC EDGAR.
+    8-K filings disclose major corporate events (earnings, acquisitions, leadership
+    changes, defaults, etc.). Returns all identified sections from each filing.
+    """
+    try:
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return (
+                f"Could not find SEC CIK for ticker '{ticker}'. "
+                f"The company may not file with the SEC."
+            )
+
+        filings = _find_filings(
+            cik,
+            {"8-K", "8-K/A"},
+            max_filings=2,
+            before_date=curr_date,
+        )
+
+        if not filings:
+            return (
+                f"No 8-K current report filings found for {ticker} (CIK: {cik}) "
+                f"on SEC EDGAR."
+            )
+
+        all_results = []
+        for filing in filings:
+            cached = _load_filing_cache(ticker, filing["accession"])
+            if cached is not None:
+                all_results.append(cached)
+                continue
+
+            html_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
+            plain_text = _html_to_text(html_data)
+
+            sections = {}
+            for m in _8K_ITEM_PATTERN.finditer(plain_text):
+                item_num = m.group(1).lower()
+                if item_num in _8K_SECTION_DEFS:
+                    section_start = m.start()
+
+                    next_m = None
+                    for nm in _8K_ITEM_PATTERN.finditer(plain_text[m.start() + 10:]):
+                        next_m = nm
+                        break
+
+                    if next_m:
+                        section_end = m.start() + 10 + next_m.start()
+                    else:
+                        section_end = len(plain_text)
+
+                    chunk = plain_text[section_start:section_end].strip()
+                    if len(chunk) > 3000:
+                        chunk = chunk[:3000] + "\n\n[... section truncated ...]"
+                    sections[_8K_SECTION_DEFS[item_num]] = chunk
+
+            if not sections:
+                truncated = plain_text[:6000]
+                if len(plain_text) > 6000:
+                    truncated += "\n\n[... filing truncated ...]"
+                sections = {"Full Filing (truncated)": truncated}
+
+            lines = [
+                f"# SEC 8-K Filing: {ticker.upper()} ({filing['form_type']})",
+                f"Filing Date: {filing['filing_date']}",
+                f"Accession: {filing['accession']}",
+                f"Source: {filing['document_url']}",
+                f"Retrieved: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "",
+            ]
+            for section_name, content in sections.items():
+                lines.append(f"## {section_name}")
+                lines.append(content)
+                lines.append("")
+
+            result = "\n".join(lines)
+            _save_filing_cache(ticker, filing["accession"], result)
+            all_results.append(result)
+
+        return "\n\n---\n\n".join(all_results)
+
+    except urllib.error.URLError as e:
+        return f"Error fetching SEC 8-K filing for {ticker}: Network error - {e}"
+    except Exception as e:
+        return f"Error fetching SEC 8-K filing for {ticker}: {e}"

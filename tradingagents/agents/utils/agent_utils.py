@@ -46,6 +46,8 @@ from tradingagents.agents.utils.business_data_tools import (
     get_sector_performance,
     get_peer_comparison,
     get_10k_filing,
+    get_10q_filing,
+    get_8k_filing,
 )
 
 
