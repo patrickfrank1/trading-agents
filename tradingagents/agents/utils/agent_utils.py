@@ -12,10 +12,19 @@ from tradingagents.agents.utils.options_greeks_tools import (
 )
 from tradingagents.agents.utils.fundamental_data_tools import (
     compute_dcf_analysis,
+    compute_comps_analysis,
+    compute_precedent_transactions,
+    compute_asset_based_valuation,
+    compute_ddm_valuation,
+    compute_residual_income_valuation,
+    compute_lbo_analysis,
+    compute_vc_valuation,
+    compute_epv_valuation,
+    compute_sotp_valuation,
     get_fundamentals,
     get_balance_sheet,
     get_cashflow,
-    get_income_statement
+    get_income_statement,
 )
 from tradingagents.agents.utils.news_data_tools import (
     get_news,
