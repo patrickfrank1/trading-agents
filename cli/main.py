@@ -1,5 +1,6 @@
 from typing import List, Optional
 import datetime
+import subprocess
 import typer
 from pathlib import Path
 from functools import wraps
@@ -732,7 +733,20 @@ def get_analysis_date():
             )
 
 
-def save_report_to_disk(final_state, ticker: str, save_path: Path):
+def _get_git_commit() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return "unknown"
+
+
+def save_report_to_disk(final_state, ticker: str, save_path: Path, config: dict | None = None):
     """Save complete analysis report to disk with organized subfolders."""
     save_path.mkdir(parents=True, exist_ok=True)
     sections = []
@@ -826,6 +840,17 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path):
 
     # Write consolidated report
     header = f"# Trading Analysis Report: {ticker}\n\nGenerated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    if config:
+        provider = config.get("llm_provider", "unknown")
+        shallow = config.get("quick_think_llm", "unknown")
+        deep = config.get("deep_think_llm", "unknown")
+        commit = _get_git_commit()
+        header += (
+            f"**LLM Provider:** {provider}\n"
+            f"**Shallow Model:** {shallow}\n"
+            f"**Deep Model:** {deep}\n"
+            f"**Commit:** {commit}\n\n"
+        )
     (save_path / "complete_report.md").write_text(header + "\n\n".join(sections), encoding="utf-8")
     return save_path / "complete_report.md"
 
@@ -1296,7 +1321,7 @@ def run_analysis(
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         actual_save_path = save_path or Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
         try:
-            report_file = save_report_to_disk(final_state, selections["ticker"], actual_save_path)
+            report_file = save_report_to_disk(final_state, selections["ticker"], actual_save_path, config)
             console.print(f"\n[green]Report saved to:[/green] {actual_save_path.resolve()}")
             console.print(f"  [dim]Complete report:[/dim] {report_file.name}")
         except Exception as e:
@@ -1312,7 +1337,7 @@ def run_analysis(
             ).strip()
             sp = Path(save_path_str)
             try:
-                report_file = save_report_to_disk(final_state, selections["ticker"], sp)
+                report_file = save_report_to_disk(final_state, selections["ticker"], sp, config)
                 console.print(f"\n[green]Report saved to:[/green] {sp.resolve()}")
                 console.print(f"  [dim]Complete report:[/dim] {report_file.name}")
             except Exception as e:
