@@ -642,27 +642,8 @@ def get_peer_comparison(
         if not sector:
             return f"Could not determine sector for '{ticker}'"
 
-        from yfinance import ScreenerQuery
-
-        query = ScreenerQuery(
-            query={"sector": sector, "industry": industry},
-            max_results=10,
-        )
-
-        try:
-            screener = yf.Screener()
-            data = screener.response
-        except Exception:
-            data = None
-
-        if not data:
-            return (
-                f"# Peer Comparison for {ticker.upper()}\n"
-                f"Sector: {sector}\n"
-                f"Industry: {industry}\n\n"
-                f"Could not retrieve peer screen data. The company operates in the "
-                f"{sector} / {industry} space. Compare against known competitors manually."
-            )
+        from yfinance import EquityQuery
+        from yfinance.screener import screen
 
         lines = [f"# Peer Comparison for {ticker.upper()}"]
         lines.append(f"Sector: {sector}")
@@ -692,13 +673,64 @@ def get_peer_comparison(
                 else:
                     lines.append(f"  {metric}: {value}")
 
-        lines.append(f"\nSector: {sector}")
-        lines.append(f"Industry: {industry}")
-        lines.append(
-            "\nNote: Peer-level screener data is not available through this data provider. "
-            "Use the company metrics above combined with sector ETF performance to assess "
-            "relative positioning."
-        )
+        try:
+            sector_valid_values = EquityQuery.__new__(EquityQuery).valid_values.get("sector", set())
+            if sector in sector_valid_values:
+                query = EquityQuery("eq", ["sector", sector])
+                data = yf_retry(lambda: screen(query, size=100))
+                quotes = data.get("quotes", []) if isinstance(data, dict) else []
+            else:
+                quotes = []
+        except Exception:
+            quotes = []
+
+        if quotes:
+            quotes = [q for q in quotes if q.get("symbol", "").upper() != ticker.upper()]
+            quotes.sort(key=lambda q: q.get("marketCap") or 0, reverse=True)
+            quotes = quotes[:10]
+
+            lines.append(f"\nSector peers (top by market cap in {sector}):")
+
+            def fmt_num(v):
+                if v is None:
+                    return "N/A"
+                if abs(v) >= 1e12:
+                    return f"${v / 1e12:.2f}T"
+                if abs(v) >= 1e9:
+                    return f"${v / 1e9:.2f}B"
+                if abs(v) >= 1e6:
+                    return f"${v / 1e6:.2f}M"
+                return f"${v:,.2f}"
+
+            for q in quotes:
+                sym = q.get("symbol", "N/A")
+                name = q.get("shortName", "N/A")
+                mcap = q.get("marketCap")
+                pe = q.get("forwardPE")
+                price = q.get("regularMarketPrice")
+                change_pct = q.get("fiftyTwoWeekChangePercent")
+
+                line = f"  {sym} — {name}"
+                details = []
+                if mcap is not None:
+                    details.append(f"MktCap: {fmt_num(mcap)}")
+                if pe is not None:
+                    details.append(f"FwdPE: {pe:.2f}")
+                if price is not None:
+                    details.append(f"Price: ${price:.2f}")
+                if change_pct is not None:
+                    details.append(f"52wChg: {change_pct * 100:.1f}%")
+                if details:
+                    line += f" ({', '.join(details)})"
+                lines.append(line)
+        else:
+            lines.append(f"\nSector: {sector}")
+            lines.append(f"Industry: {industry}")
+            lines.append(
+                "\nNote: Peer-level screener data is not available. "
+                "Use the company metrics above combined with sector ETF performance to assess "
+                "relative positioning."
+            )
 
         return "\n".join(lines)
 
