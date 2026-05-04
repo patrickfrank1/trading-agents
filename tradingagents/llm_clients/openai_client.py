@@ -1,6 +1,7 @@
 import os
 from typing import Any, Optional
 
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 
 from .base_client import BaseLLMClient, normalize_content
@@ -8,11 +9,14 @@ from .validators import validate_model
 
 
 class NormalizedChatOpenAI(ChatOpenAI):
-    """ChatOpenAI with normalized content output.
+    """ChatOpenAI with normalized content output and DeepSeek reasoning_content support.
 
     The Responses API returns content as a list of typed blocks
     (reasoning, text, etc.). This normalizes to string for consistent
     downstream handling.
+
+    Also preserves `reasoning_content` from DeepSeek's thinking mode so it can
+    be passed back in subsequent API calls within a tool-calling loop.
     """
 
     def invoke(self, input, config=None, **kwargs):
@@ -33,6 +37,52 @@ class NormalizedChatOpenAI(ChatOpenAI):
         if method is None:
             method = "function_calling"
         return super().with_structured_output(schema, method=method, **kwargs)
+
+    def _create_chat_result(self, response, generation_info=None):
+        """Override to preserve reasoning_content from DeepSeek API responses.
+
+        langchain-openai's _convert_dict_to_message does not extract
+        reasoning_content, so we copy it into additional_kwargs here.
+        """
+        result = super()._create_chat_result(response, generation_info)
+
+        message = None
+        if isinstance(response, dict):
+            message = response.get("choices", [{}])[0].get("message", {})
+        elif hasattr(response, "choices") and response.choices:
+            raw_msg = response.choices[0].message
+            if hasattr(raw_msg, "model_dump"):
+                message = raw_msg.model_dump()
+
+        reasoning_content = None
+        if isinstance(message, dict):
+            reasoning_content = message.get("reasoning_content")
+        elif hasattr(message, "reasoning_content"):
+            reasoning_content = message.reasoning_content
+
+        if reasoning_content and result.generations:
+            result.generations[0].message.additional_kwargs["reasoning_content"] = reasoning_content
+
+        return result
+
+
+# Monkey-patch _convert_message_to_dict to include reasoning_content when
+# serializing AIMessages back to API format. DeepSeek requires that
+# reasoning_content be passed back in subsequent calls within a tool-calling
+# loop. langchain-openai v1.2.1 does not handle this field.
+import langchain_openai.chat_models.base as _lc_base
+
+_original_convert_message_to_dict = _lc_base._convert_message_to_dict
+
+
+def _patched_convert_message_to_dict(message, api="chat/completions"):
+    result = _original_convert_message_to_dict(message, api)
+    if isinstance(message, AIMessage) and "reasoning_content" in message.additional_kwargs:
+        result["reasoning_content"] = message.additional_kwargs["reasoning_content"]
+    return result
+
+
+_lc_base._convert_message_to_dict = _patched_convert_message_to_dict
 
 # Kwargs forwarded from user config to ChatOpenAI
 _PASSTHROUGH_KWARGS = (
