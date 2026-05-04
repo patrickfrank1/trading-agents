@@ -177,6 +177,21 @@ class PortfolioDecision(BaseModel):
     the rating-scale guidance.
     """
 
+    arguments_table: str = Field(
+        description=(
+            "A markdown table compiling the arguments for BUY and for SELL "
+            "that drive the final decision, each with an impact rating. "
+            "Each row must include: the argument, its source analyst type, "
+            "an impact rating (High / Medium / Low), and whether it supports "
+            "BUY or SELL. Assign impact based on the analyst weighting "
+            "priority used by the research team: Business Analyst and "
+            "Fundamentals Analyst arguments carry the most weight (typically "
+            "High impact), while Macro, Market, News, and Sentiment Analyst "
+            "arguments carry less (typically Medium or Low impact). The table "
+            "must be compiled BEFORE arriving at the rating, so the reasoning "
+            "is fully transparent."
+        ),
+    )
     rating: PortfolioRating = Field(
         description=(
             "The final position rating. Exactly one of Buy / Overweight / Hold / "
@@ -216,6 +231,8 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
     """
     parts = [
         f"**Rating**: {decision.rating.value}",
+        "",
+        f"**Weighted Arguments**:\n{decision.arguments_table}",
         "",
         f"**Executive Summary**: {decision.executive_summary}",
         "",

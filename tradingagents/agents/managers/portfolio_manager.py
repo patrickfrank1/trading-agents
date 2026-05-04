@@ -52,6 +52,20 @@ def create_portfolio_manager(llm):
 - **Underweight**: Reduce exposure, take partial profits
 - **Sell**: Exit position or avoid entry
 
+**Analyst Weighting Priority** — used to assign impact ratings (same priority as the research team):
+- Business Analyst — Highest priority: competitive moat, management execution, product strategy, and long-term business value.
+- Fundamentals Analyst — Core financial analysis: profitability, valuation, balance sheet strength, and financial health.
+- Macro Analyst — Macroeconomic context: Fed policy, inflation, labor markets, and geopolitical factors.
+- Market Analyst — Technical indicators and price action for entry/exit timing — NOT for the directional thesis itself.
+- News Analyst — Recent news flow, material events, and catalysts, but do not let news override fundamentals.
+- Sentiment Analyst — Social media and retail sentiment, supplementary signal only.
+
+**Step 1 — Arguments Table:**
+First, compile a markdown table of the key BUY and SELL arguments extracted from the risk debate and supporting context below. Each row must include: the argument, its source analyst type, an impact rating (High / Medium / Low), and whether it supports BUY or SELL. Arguments sourced from Business Analyst or Fundamentals Analyst should generally carry High impact; arguments from Macro, Market, News, or Sentiment Analysts should generally carry Medium or Low impact. This table anchors your final decision in transparent, weighted evidence.
+
+**Step 2 — Final Decision:**
+After the table, deliver your final rating and supporting details.
+
 **Context:**
 - Research Manager's investment plan: **{research_plan}**
 - Trader's transaction proposal: **{trader_plan}**
