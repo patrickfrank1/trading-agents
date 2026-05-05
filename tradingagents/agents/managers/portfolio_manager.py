@@ -63,7 +63,10 @@ def create_portfolio_manager(llm):
 **Step 1 — Arguments Table:**
 First, compile a markdown table of the key BUY and SELL arguments extracted from the risk debate and supporting context below. Each row must include: the argument, its source analyst type, an impact rating (High / Medium / Low), and whether it supports BUY or SELL. Arguments sourced from Business Analyst or Fundamentals Analyst should generally carry High impact; arguments from Macro, Market, News, or Sentiment Analysts should generally carry Medium or Low impact. This table anchors your final decision in transparent, weighted evidence.
 
-**Step 2 — Final Decision:**
+**Step 2 — Investment Thesis:**
+Provide a concise summary of the key drivers behind your final decision.
+
+**Step 3 — Final Decision:**
 After the table, deliver your final rating and supporting details.
 
 **Context:**
