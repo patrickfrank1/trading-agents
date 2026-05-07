@@ -8,6 +8,7 @@ tickers:
 - MRK
 - ROP.SW
 - NOVN.SW
+- NESN.SW
 - REGN
 - GSK
 - LLY
@@ -23,12 +24,14 @@ tickers:
 - CVS
 - ELV
 - HUM
+- COR
 - PDD
 - 0700.HK
 - 9988.HK
 - JD
 - 3690.HK
 - WB
+- GKP.L
 - OVH.PA
 - SAP.DE
 - ORCL
@@ -37,12 +40,19 @@ tickers:
 - NOW
 - MSFT
 - META
-- BMNR
 - O
 - APLE
 - PK
 - AGNC
+- GLD
+- SGOV
 - OXY
+- PYPL
+- WU
+- DFDS.CO
+- HAUTO.OL
+- ODF.OL
+- WAWI.OL
 - HSBC
 - ING
 - ACA.PA
@@ -50,11 +60,4 @@ tickers:
 - SAN
 - BBVA
 - UCG.MI
-- PYPL
-- WU
-- GLD
-- SGOV
-- DFDS.CO
-- HAUTO.OL
-- ODF.OL
-- WAWI.OL
+
