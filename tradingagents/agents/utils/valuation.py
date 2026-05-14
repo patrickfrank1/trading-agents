@@ -24,6 +24,7 @@ from tradingagents.agents.utils.dcf import (
     _safe_get,
     _to_clean_list,
 )
+from tradingagents.dataflows.stockstats_utils import yf_retry
 
 
 def _current_price(info):
@@ -71,25 +72,47 @@ def _net_debt(historical):
 # 1. Comparable Company Analysis
 # ---------------------------------------------------------------------------
 
+_MULTIPLE_KEYS = [
+    ("Trailing P/E", "trailingPE"),
+    ("Forward P/E", "forwardPE"),
+    ("P/B", "priceToBook"),
+    ("P/S", "priceToSalesTrailing12Months"),
+    ("EV/EBITDA", "enterpriseToEbitda"),
+    ("EV/Revenue", "enterpriseToRevenue"),
+]
+
+
+def _fetch_peer_tickers(ticker: str, info: dict) -> list[str]:
+    """Fetch up to 5 competitor tickers from the same yfinance sector."""
+    sector = _safe_get(info, "sector")
+    if not sector:
+        return []
+
+    try:
+        from yfinance import EquityQuery
+        from yfinance.screener import screen
+
+        sector_valid_values = EquityQuery.__new__(EquityQuery).valid_values.get("sector", set())
+        if sector not in sector_valid_values:
+            return []
+
+        query = EquityQuery("eq", ["sector", sector])
+        data = yf_retry(lambda: screen(query, size=100))
+        quotes = data.get("quotes", []) if isinstance(data, dict) else []
+    except Exception:
+        return []
+
+    quotes = [q for q in quotes if q.get("symbol", "").upper() != ticker.upper()]
+    quotes.sort(key=lambda q: q.get("marketCap") or 0, reverse=True)
+    return [q["symbol"] for q in quotes[:5] if "symbol" in q]
+
+
 def run_comps_analysis(ticker: str, curr_date: str | None = None) -> str:
     ticker_obj = yf.Ticker(ticker)
     info = ticker_obj.info
     price = _current_price(info)
     shares = _shares(info)
     historical = _fetch_historical(ticker_obj)
-
-    multiples = {}
-    for label, key in [
-        ("Trailing P/E", "trailingPE"),
-        ("Forward P/E", "forwardPE"),
-        ("P/B", "priceToBook"),
-        ("P/S", "priceToSalesTrailing12Months"),
-        ("EV/EBITDA", "enterpriseToEbitda"),
-        ("EV/Revenue", "enterpriseToRevenue"),
-    ]:
-        val = _safe_get(info, key)
-        if val is not None and not math.isnan(val):
-            multiples[label] = val
 
     net_debt = _net_debt(historical)
     total_revenue = _safe_get(info, "totalRevenue", 0) or 0
@@ -99,44 +122,86 @@ def run_comps_analysis(ticker: str, curr_date: str | None = None) -> str:
     eps = _safe_get(info, "trailingEps", 0) or 0
     fwd_eps = _safe_get(info, "forwardEps", 0) or 0
 
+    own_multiples = {}
+    for label, key in _MULTIPLE_KEYS:
+        val = _safe_get(info, key)
+        if val is not None and not math.isnan(val):
+            own_multiples[label] = val
+
+    peer_tickers = _fetch_peer_tickers(ticker, info)
+    peer_data = []
+    peer_multiples: dict[str, list[float]] = {label: [] for label, _ in _MULTIPLE_KEYS}
+
+    for peer_ticker in peer_tickers:
+        try:
+            peer_info = yf_retry(lambda: yf.Ticker(peer_ticker).info)
+            peer_name = _safe_get(peer_info, "shortName", peer_ticker)
+            peer_price = _current_price(peer_info)
+            peer_mcap = _safe_get(peer_info, "marketCap")
+            peer_multiples_row = {}
+            for label, key in _MULTIPLE_KEYS:
+                val = _safe_get(peer_info, key)
+                if val is not None and not math.isnan(val) and val > 0:
+                    peer_multiples_row[label] = val
+                    peer_multiples[label].append(val)
+            peer_data.append((peer_ticker, peer_name, peer_price, peer_mcap, peer_multiples_row))
+        except Exception:
+            continue
+
+    peer_median_multiples = {}
+    for label, vals in peer_multiples.items():
+        if vals:
+            sorted_vals = sorted(vals)
+            peer_median_multiples[label] = sorted_vals[len(sorted_vals) // 2]
+
     implied = {}
-    if eps > 0 and "Trailing P/E" in multiples:
-        implied["P/E"] = multiples["Trailing P/E"] * eps
-    if fwd_eps > 0 and "Forward P/E" in multiples:
-        implied["P/E (Fwd)"] = multiples["Forward P/E"] * fwd_eps
-    if book_value > 0 and "P/B" in multiples:
-        implied["P/B"] = multiples["P/B"] * book_value
-    if total_revenue > 0 and "P/S" in multiples:
-        implied["P/S"] = multiples["P/S"] * total_revenue / shares
-    if ebitda > 0 and "EV/EBITDA" in multiples:
-        implied["EV/EBITDA"] = (multiples["EV/EBITDA"] * ebitda - net_debt) / shares
-    if total_revenue > 0 and "EV/Revenue" in multiples:
-        implied["EV/Revenue"] = (multiples["EV/Revenue"] * total_revenue - net_debt) / shares
+    if eps > 0 and "Trailing P/E" in peer_median_multiples:
+        implied["P/E"] = peer_median_multiples["Trailing P/E"] * eps
+    if fwd_eps > 0 and "Forward P/E" in peer_median_multiples:
+        implied["P/E (Fwd)"] = peer_median_multiples["Forward P/E"] * fwd_eps
+    if book_value > 0 and "P/B" in peer_median_multiples:
+        implied["P/B"] = peer_median_multiples["P/B"] * book_value
+    if total_revenue > 0 and "P/S" in peer_median_multiples:
+        implied["P/S"] = peer_median_multiples["P/S"] * total_revenue / shares
+    if ebitda > 0 and "EV/EBITDA" in peer_median_multiples:
+        implied["EV/EBITDA"] = (peer_median_multiples["EV/EBITDA"] * ebitda - net_debt) / shares
+    if total_revenue > 0 and "EV/Revenue" in peer_median_multiples:
+        implied["EV/Revenue"] = (peer_median_multiples["EV/Revenue"] * total_revenue - net_debt) / shares
 
     lines = [
         _heading("Comparable Company Analysis", ticker),
         "",
         f"**Sector:** {_safe_get(info, 'sector', 'N/A')}  |  **Industry:** {_safe_get(info, 'industry', 'N/A')}",
         "",
-        _section("Current Trading Multiples"),
+        _section("Peer Comparison Multiples"),
         "",
-        "| Multiple | Value |",
-        "|---|---|",
     ]
 
-    for label, val in multiples.items():
-        lines.append(_kv(label, f"{val:.2f}x"))
+    header = "| Peer | Market Cap | Price |"
+    separator = "|---|---|---|"
+    for label, _ in _MULTIPLE_KEYS:
+        header += f" {label} |"
+        separator += "---|"
+    lines.append(header)
+    lines.append(separator)
 
-    div_yield = _safe_get(info, "dividendYield")
-    if div_yield and div_yield > 0:
-        lines.append(_kv("Dividend Yield", f"{div_yield:.2%}"))
+    lines.append(_peer_table_row(
+        f"**{ticker.upper()}**", _safe_get(info, "marketCap"), price, own_multiples
+    ))
 
-    roe = _safe_get(info, "returnOnEquity")
-    if roe is not None:
-        lines.append(_kv("ROE", f"{roe:.2%}"))
-    margin = _safe_get(info, "profitMargins")
-    if margin is not None:
-        lines.append(_kv("Net Margin", f"{margin:.2%}"))
+    for peer_ticker, peer_name, peer_price, peer_mcap, peer_row in peer_data:
+        lines.append(_peer_table_row(
+            f"{peer_ticker} ({peer_name[:20]})", peer_mcap, peer_price, peer_row
+        ))
+
+    lines += [
+        "",
+        _section("Peer Median Multiples"),
+        "",
+    ]
+    for label, _ in _MULTIPLE_KEYS:
+        if label in peer_median_multiples:
+            lines.append(f"- **{label}:** {peer_median_multiples[label]:.2f}x")
 
     lines += [
         "",
@@ -150,7 +215,7 @@ def run_comps_analysis(ticker: str, curr_date: str | None = None) -> str:
         f"- **Book Value:** {_fmt(book_value)}",
         f"- **Net Debt:** {_fmt(net_debt)}",
         "",
-        _section("Implied Valuation from Multiples"),
+        _section("Implied Valuation from Peer Median Multiples"),
         "",
         "| Method | Fair Value/Share | Upside / Downside |",
         "|---|---|---|",
@@ -170,15 +235,33 @@ def run_comps_analysis(ticker: str, curr_date: str | None = None) -> str:
             f"**Mean Implied FV/Share:** ${avg:.2f} ({_pct_signed(_upside(avg, price))})",
             f"**Median Implied FV/Share:** ${med:.2f} ({_pct_signed(_upside(med, price))})",
         ]
+    else:
+        lines += [
+            "",
+            "> **Note:** Insufficient peer data to compute implied fair value."
+            " Falling back to the company's own current market multiples.",
+        ]
 
     lines += [
         "",
-        "> **Note:** This analysis uses the company's own current market multiples. "
-        "A full comps analysis would benchmark against a curated peer group. "
-        "The values above reflect the market's current pricing of fundamentals.",
+        f"> **Note:** Fair value is derived from the **median** multiples of {len(peer_data)} "
+        f"peer companies in the {_safe_get(info, 'sector', 'N/A')} sector. "
+        f"Peer multiples represent market sentiment for comparable firms; "
+        f"applied to {ticker.upper()}'s financial metrics.",
         "",
     ]
     return "\n".join(lines)
+
+
+def _peer_table_row(label, mcap, price, multiples_row):
+    row = f"| {label} | {_fmt(mcap or 0)} | ${price:.2f} |" if price else f"| {label} | {_fmt(mcap or 0)} | N/A |"
+    for mult_label, _ in _MULTIPLE_KEYS:
+        val = multiples_row.get(mult_label) if isinstance(multiples_row, dict) else None
+        if val is not None:
+            row += f" {val:.2f}x |"
+        else:
+            row += " N/A |"
+    return row
 
 
 # ---------------------------------------------------------------------------
