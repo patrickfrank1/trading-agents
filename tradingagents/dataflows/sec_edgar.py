@@ -25,6 +25,7 @@ _TICKERS_FETCH_TIME = 0
 _MIN_TICKERS_CACHE_AGE = 3600
 
 _FILING_CACHE_DIR = Path(os.path.expanduser("~"), ".tradingagents", "cache", "sec_filings")
+_FILING_CACHE_VERSION = 2
 _FILING_CACHE_MAX_AGE = 90 * 24 * 3600  # 90 days in seconds
 
 _FIREFOX_VERSIONS = ["120.0", "121.0", "122.0", "123.0", "124.0", "125.0", "126.0", "127.0", "128.0", "129.0"]
@@ -139,7 +140,7 @@ def _find_filings(
             accession_clean = accessions[i].replace("-", "")
             doc_url = (
                 f"{EDGAR_BASE}/Archives/edgar/data/{cik}/"
-                f"{accession_clean}/{primary_docs[i]}"
+                f"{accession_clean}/{accession_clean}.txt"
             )
             results.append({
                 "form_type": form,
@@ -174,6 +175,8 @@ def _load_filing_cache(ticker: str, accession: str) -> Optional[str]:
         if age > _FILING_CACHE_MAX_AGE:
             return None
         data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("cache_version") != _FILING_CACHE_VERSION:
+            return None
         if data.get("accession") != accession:
             return None
         return data.get("result")
@@ -186,7 +189,7 @@ def _save_filing_cache(ticker: str, accession: str, result: str) -> None:
         _FILING_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         path = _filing_cache_path(ticker, accession)
         path.write_text(
-            json.dumps({"accession": accession, "result": result}),
+            json.dumps({"accession": accession, "cache_version": _FILING_CACHE_VERSION, "result": result}),
             encoding="utf-8",
         )
     except OSError:
@@ -208,9 +211,19 @@ def _html_to_text(html: str) -> str:
     return text.strip()
 
 
+def _ingest_complete_filing_text(raw_txt: str) -> str:
+    match = re.search(r"<TEXT>\s*(.*?)\s*</TEXT>", raw_txt, re.DOTALL | re.IGNORECASE)
+    if match:
+        return _html_to_text(match.group(1))
+    match = re.search(r"<text>\s*(.*?)\s*</text>", raw_txt, re.DOTALL)
+    if match:
+        return _html_to_text(match.group(1))
+    return _html_to_text(raw_txt)
+
+
 def _find_all_item_headers(text: str) -> list:
     positions = []
-    for m in re.finditer(r"item\s+(\d+[a-z]?)\s*[.:]?\s*(?=[A-Z])", text, re.IGNORECASE):
+    for m in re.finditer(r"item\s+(\d+[a-z]?)\s*[.:]?\s+", text, re.IGNORECASE):
         item_num = m.group(1).lower()
         positions.append((m.start(), m.end(), item_num))
     return positions
@@ -314,8 +327,8 @@ def _fetch_and_format_filing(ticker: str, filing: dict, section_defs: dict, max_
     if cached is not None:
         return cached
 
-    html_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
-    plain_text = _html_to_text(html_data)
+    raw_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
+    plain_text = _ingest_complete_filing_text(raw_data)
     sections = _extract_sections(plain_text, max_chars=max_chars, section_defs=section_defs)
 
     lines = [
@@ -378,7 +391,7 @@ def get_10k_filing_data(
                 _fetch_and_format_filing(
                     ticker, filing,
                     section_defs=section_defs,
-                    max_chars=6000,
+                    max_chars=50000,
                 )
             )
 
@@ -424,7 +437,7 @@ def get_10q_filing_data(
                 _fetch_and_format_filing(
                     ticker, filing,
                     section_defs=_10Q_SECTION_DEFS,
-                    max_chars=6000,
+                    max_chars=50000,
                 )
             )
 
@@ -472,8 +485,8 @@ def get_8k_filing_data(
                 all_results.append(cached)
                 continue
 
-            html_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
-            plain_text = _html_to_text(html_data)
+            raw_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
+            plain_text = _ingest_complete_filing_text(raw_data)
 
             sections = {}
             for m in _8K_ITEM_PATTERN.finditer(plain_text):
@@ -492,13 +505,13 @@ def get_8k_filing_data(
                         section_end = len(plain_text)
 
                     chunk = plain_text[section_start:section_end].strip()
-                    if len(chunk) > 3000:
-                        chunk = chunk[:3000] + "\n\n[... section truncated ...]"
+                    if len(chunk) > 20000:
+                        chunk = chunk[:20000] + "\n\n[... section truncated ...]"
                     sections[_8K_SECTION_DEFS[item_num]] = chunk
 
             if not sections:
-                truncated = plain_text[:6000]
-                if len(plain_text) > 6000:
+                truncated = plain_text[:40000]
+                if len(plain_text) > 40000:
                     truncated += "\n\n[... filing truncated ...]"
                 sections = {"Full Filing (truncated)": truncated}
 
@@ -563,7 +576,7 @@ def get_20f_filing_data(
                 _fetch_and_format_filing(
                     ticker, filing,
                     section_defs=_20F_SECTION_DEFS,
-                    max_chars=6000,
+                    max_chars=50000,
                 )
             )
 
@@ -615,10 +628,10 @@ def get_6k_filing_data(
                 all_results.append(cached)
                 continue
 
-            html_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
-            plain_text = _html_to_text(html_data)
+            raw_data = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
+            plain_text = _ingest_complete_filing_text(raw_data)
 
-            max_chars = 8000
+            max_chars = 60000
             truncated = plain_text[:max_chars]
             if len(plain_text) > max_chars:
                 truncated += "\n\n[... filing truncated ...]"
