@@ -79,7 +79,7 @@ Each agent must extract and return structured data covering:
 5. **Bull & Bear Case Summaries**:
    - 2-3 sentence distillation of each side, preserving the key quantitative anchors (multiples, growth rates, fair values) from the original report
 
-**Subagent instructions**: Be thorough. Read every section of the report (Analysts, Research, Trading, Risk, Portfolio). Return raw data — do not summarize or editorialize. If a metric is mentioned in multiple places with different values, report all values and note the discrepancy.
+**Subagent instructions**: Be thorough. Read every section of the report (Analysts, Research, Trading, Risk, **Portfolio Manager**). The Portfolio Manager section is critical — it contains the final rating, entry/exit instructions, and the PM's holistic understanding of the business model, competitive position, and investment thesis. Read it in full to understand the company's business model and risk/reward profile, not just to extract the rating. Return raw data — do not summarize or editorialize. If a metric is mentioned in multiple places with different values, report all values and note the discrepancy.
 
 ### Step 4: Compile the Report
 
@@ -159,5 +159,7 @@ Before finalizing, verify:
 - **All data comes exclusively from `reports/sent/` files** — never fetch external data, never guess
 - **Use task subagents for parallelism** — launch all company extractions simultaneously
 - **Be sector-aware not sector-blind** — the asset comparison table must reflect what actually matters for that industry
+- **Always read the Portfolio Manager report in full** — the PM section is where the business model, competitive position, and investment thesis are synthesized. Do not extract just the rating; understand the business.
+- **Always rank the companies** — every comparison report MUST include a ranked ordering from best to worst investment (Section 4: Ranking). Rankings should synthesize PM ratings, valuation, financial health, competitive strength, and growth trajectory.
 - **Convert all currencies to USD** for comparison tables, noting the rate used
 - **Preserve file naming**: `reports/sector_comparison_<sector>_<YYYYMMDD>.md`
