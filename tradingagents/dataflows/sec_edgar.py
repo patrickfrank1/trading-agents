@@ -139,8 +139,8 @@ def _find_filings(
                 continue
             accession_clean = accessions[i].replace("-", "")
             doc_url = (
-                f"{EDGAR_BASE}/Archives/edgar/data/{cik}/"
-                f"{accession_clean}/{accession_clean}.txt"
+                f"{EDGAR_BASE}/Archives/edgar/data/{cik.lstrip('0')}/"
+                f"{accession_clean}/{accessions[i]}.txt"
             )
             results.append({
                 "form_type": form,
