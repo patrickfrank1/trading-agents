@@ -95,6 +95,15 @@ def _structured_pm_llm(captured: dict, decision: PortfolioDecision | None = None
                 "| Strong AI capex cycle | Business Analyst | High | BUY |\n"
                 "| Elevated valuation | Fundamentals Analyst | High | SELL |"
             ),
+            weighted_score=0.0,
+            scenario_table=(
+                "| Scenario | Probability | Price Target | Driver |\n"
+                "|----------|-------------|--------------|--------|\n"
+                "| Bull | 40% | 160 | Capex pays off |\n"
+                "| Base | 40% | 120 | Show-me |\n"
+                "| Bear | 20% | 80 | Demand miss |"
+            ),
+            trade_ticket="Action: Hold. New capital size: 0%. Existing holders maintain with $108 hard stop.",
             rating=PortfolioRating.HOLD,
             executive_summary="Hold the position; await catalyst.",
             investment_thesis="Balanced view; neither side carried the debate.",
@@ -626,6 +635,15 @@ class TestPortfolioManagerInjection:
                 "| Institutional flows constructive | Market Analyst | Medium | BUY |\n"
                 "| Rich valuation near ATH | Fundamentals Analyst | High | SELL |"
             ),
+            weighted_score=20.0,
+            scenario_table=(
+                "| Scenario | Probability | Price Target | Driver |\n"
+                "|----------|-------------|--------------|--------|\n"
+                "| Bull | 50% | 250 | Capex cycle intact |\n"
+                "| Base | 35% | 215 | Constructive flows |\n"
+                "| Bear | 15% | 160 | Valuation de-rate |"
+            ),
+            trade_ticket="Action: Buy. Size: 2% of portfolio. Entry: scale 120-130. Stop: 108.",
             rating=PortfolioRating.OVERWEIGHT,
             executive_summary="Build position gradually over the next two weeks.",
             investment_thesis="AI capex cycle remains intact; institutional flows constructive.",

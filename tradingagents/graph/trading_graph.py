@@ -172,6 +172,7 @@ class TradingAgentsGraph:
             enable_debate_referee=self.config.get("enable_debate_referee", True),
             enable_fact_check=self.config.get("enable_fact_check", True),
             enable_fact_reconciliation=self.config.get("enable_fact_reconciliation", True),
+            enable_risk_debate_referee=self.config.get("enable_risk_debate_referee", True),
         )
 
         # Per-debater LLMs with distinct temperatures so the two sides of each
@@ -582,6 +583,9 @@ class TradingAgentsGraph:
                 "neutral_history": final_state["risk_debate_state"]["neutral_history"],
                 "history": final_state["risk_debate_state"]["history"],
                 "judge_decision": final_state["risk_debate_state"]["judge_decision"],
+                "referee_notes": final_state["risk_debate_state"].get(
+                    "referee_notes", ""
+                ),
             },
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],

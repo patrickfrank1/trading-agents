@@ -72,6 +72,7 @@ Make the capital-preservation case — concede real upside, then show why the do
                 "current_neutral_response", ""
             ),
             "count": risk_debate_state["count"] + 1,
+            "referee_notes": risk_debate_state.get("referee_notes", ""),
         }
 
         return {"risk_debate_state": new_risk_debate_state}

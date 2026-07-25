@@ -47,6 +47,7 @@ class Propagator:
                     "current_neutral_response": "",
                     "judge_decision": "",
                     "count": 0,
+                    "referee_notes": "",
                 }
             ),
             "market_report": "",
@@ -58,6 +59,7 @@ class Propagator:
             "facts_snapshot": "",
             "claim_audit": "",
             "debate_converged": False,
+            "risk_debate_converged": False,
             "tool_errors": [],
         }
 

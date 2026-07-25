@@ -45,6 +45,9 @@ class RiskDebateState(TypedDict):
     ]  # Last response
     judge_decision: Annotated[str, "Judge's decision"]
     count: Annotated[int, "Length of the current conversation"]  # Conversation length
+    # Running per-round referee verdicts for the risk debate, so debaters can
+    # see which of their points were scored as conceded/unsupported.
+    referee_notes: Annotated[str, "Running risk-debate referee verdicts across rounds"]
 
 
 class AgentState(MessagesState):
@@ -81,6 +84,10 @@ class AgentState(MessagesState):
     # Set True by the mid-debate referee once both sides are only restating
     # themselves, allowing the debate to end before the round cap.
     debate_converged: Annotated[bool, "Whether the bull/bear debate has converged"]
+    # Set True by the risk-debate referee once all three risk analysts are
+    # only restating themselves, allowing the risk debate to end before the
+    # round cap instead of running fixed restating rounds.
+    risk_debate_converged: Annotated[bool, "Whether the risk debate has converged"]
 
     # risk management team discussion step
     risk_debate_state: Annotated[

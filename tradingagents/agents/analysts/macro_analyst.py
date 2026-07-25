@@ -2,6 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_language_instruction,
+    get_report_hygiene_instruction,
 )
 from tradingagents.agents.utils.macro_data_tools import (
     get_cpi_data,
@@ -72,7 +73,9 @@ def create_macro_analyst(llm):
             "Call each tool at least once to gather data before writing your report. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
             + fred_context
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
+            + "\n\n**Scope of your FINAL TRANSACTION PROPOSAL:** You see ONLY the macro lens — not the company's fundamentals, balance sheet, news flow, or sentiment. Your proposal must therefore be explicitly CONDITIONAL on the company-specific picture: macro tailwinds alone never justify an unconditional BUY, and macro headwinds alone never justify an unconditional SELL. Phrase the proposal as 'BUY if the company-specific fundamentals/sentiment are not deteriorating' (or the equivalent hedge), so the downstream research team can combine your macro view with the idiosyncratic view rather than reading a siloed BUY/SELL as a final verdict."
             + get_language_instruction()
+            + get_report_hygiene_instruction()
         )
 
         prompt = ChatPromptTemplate.from_messages(

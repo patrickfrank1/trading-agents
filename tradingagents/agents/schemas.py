@@ -192,6 +192,42 @@ class PortfolioDecision(BaseModel):
             "is fully transparent."
         ),
     )
+    weighted_score: float = Field(
+        description=(
+            "A single auditable net score in the range -100 (max SELL) to "
+            "+100 (max BUY), derived by weighing the arguments table. "
+            "High-impact BUY arguments add up to +20 each, Medium +10, Low +5; "
+            "High-impact SELL arguments subtract the same amounts. Sum and "
+            "clamp to [-100, +100]. Map the score to the rating: >=+40 Buy, "
+            "+15..+39 Overweight, -14..+14 Hold, -39..-15 Underweight, <=-40 "
+            "Sell. If the final rating does not match this band, explain why "
+            "in the investment_thesis."
+        ),
+    )
+    scenario_table: str = Field(
+        description=(
+            "A markdown probability-weighted scenario table with three rows "
+            "(Bull / Base / Bear). Columns: scenario, probability (sum to "
+            "100%), price target, and the one-sentence driver. Multiply "
+            "price targets by probabilities to show the probability-weighted "
+            "expected price. This forces an explicit view on the binary / "
+            "'show-me' outcomes instead of leaving them implicit."
+        ),
+    )
+    trade_ticket: str = Field(
+        description=(
+            "A concrete, executable ticket resolving the risk team's "
+            "conflicting size/strike proposals into ONE plan. Include: "
+            "action (consistent with the rating), position size as % of "
+            "portfolio, entry/exit levels, any hedge structure (collar / "
+            "put-spread strikes and approximate premium), and named exit "
+            "triggers (e.g. 'close < $108', 'ATM draw > $5B/quarter', "
+            "'D/E > 450%'). No vague language like 'consider a collar' — "
+            "specify the strikes. If the rating is Hold with no new capital, "
+            "state size = 0% for new capital and give the maintenance plan "
+            "for existing holders."
+        ),
+    )
     rating: PortfolioRating = Field(
         description=(
             "The final position rating. Exactly one of Buy / Overweight / Hold / "
@@ -232,7 +268,14 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
     parts = [
         f"**Rating**: {decision.rating.value}",
         "",
+        f"**Weighted Score**: {decision.weighted_score:+.0f} / 100  "
+        f"(>=+40 Buy | +15..+39 Overweight | -14..+14 Hold | -39..-15 Underweight | <=-40 Sell)",
+        "",
         f"**Weighted Arguments**:\n{decision.arguments_table}",
+        "",
+        f"**Probability-Weighted Scenarios**:\n{decision.scenario_table}",
+        "",
+        f"**Trade Ticket**:\n{decision.trade_ticket}",
         "",
         f"**Executive Summary**: {decision.executive_summary}",
         "",

@@ -413,6 +413,8 @@ def _format_report(ticker, info, base, pessimistic, optimistic, hist_fcfs):
         "",
     ]
 
+    lines += _dcf_sanity_warnings(base, pessimistic, optimistic)
+
     if hist_fcfs:
         lines += ["### Historical Free Cash Flow (Annual)", ""]
         for i, fcf in enumerate(hist_fcfs):
@@ -421,3 +423,60 @@ def _format_report(ticker, info, base, pessimistic, optimistic, hist_fcfs):
         lines.append("")
 
     return "\n".join(lines)
+
+
+def _dcf_sanity_warnings(base, pessimistic, optimistic) -> list[str]:
+    """Flag DCF outputs that are extreme enough to be unreliable.
+
+    A DCF that prints a $8 fair value against a $115 price (93% downside) is
+    almost always a sign that the base FCF or WACC assumption is broken
+    (e.g. normalizing away a temporary capex super-cycle), not a genuine
+    valuation signal. Rather than let that number flow into the PM's
+    arguments unchallenged, surface a warning so the analyst and PM treat it
+    as a flagged output, not settled fact.
+    """
+    warnings: list[str] = []
+    price = base.current_price or 0.0
+    flagged = []
+    for scenario in (pessimistic, base, optimistic):
+        fv = scenario.fair_value_per_share
+        if fv <= 0:
+            flagged.append((scenario.scenario_name, fv, scenario.upside_pct))
+            continue
+        if price > 0:
+            downside = -scenario.upside_pct  # upside_pct is negative for downside
+            if downside >= 0.80 or fv < price * 0.10:
+                flagged.append((scenario.scenario_name, fv, scenario.upside_pct))
+
+    if flagged:
+        detail = "; ".join(
+            f"{name} FV=${fv:.2f} ({_pct_signed(up)})" for name, fv, up in flagged
+        )
+        warnings.append(
+            "> ⚠️ **DCF sanity check:** One or more scenarios imply an extreme "
+            f"fair value ({detail}). This usually means the normalized base FCF "
+            "or WACC assumption does not reflect the company's actual cash-flow "
+            "trajectory (e.g. a temporary capex super-cycle is being treated as "
+            "permanent). Treat these outputs as a flagged lower bound, not a "
+            "precise intrinsic value, and cross-check against EPV, comps, and "
+            "the business case before anchoring a decision on them."
+        )
+
+    # Spread check: if pessimistic and optimistic span an absurd range, the
+    # DCF is not converging and shouldn't be the deciding valuation method.
+    if (
+        pessimistic.fair_value_per_share > 0
+        and optimistic.fair_value_per_share > 0
+        and optimistic.fair_value_per_share / pessimistic.fair_value_per_share > 20
+    ):
+        warnings.append(
+            "> ⚠️ **DCF sanity check:** The pessimistic-to-optimistic fair-value "
+            f"spread is >20x (${pessimistic.fair_value_per_share:.2f} → "
+            f"${optimistic.fair_value_per_share:.2f}). The DCF is extremely "
+            "sensitive to assumptions here; rely on a range and triangulate "
+            "with other valuation methods instead of any single point estimate."
+        )
+
+    if warnings:
+        warnings.append("")
+    return warnings

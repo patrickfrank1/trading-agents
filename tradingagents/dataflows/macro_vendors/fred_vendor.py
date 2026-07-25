@@ -121,6 +121,12 @@ def _add_derived(data: dict):
     cpi = data.get("cpi", {})
     if "change" in cpi:
         derived["cpi_monthly_change"] = cpi["change"]
+        # Also express the CPI move as a percent so analysts don't conflate
+        # index-point moves with percent moves (a -1.4 point drop on a 332
+        # index is -0.42% MoM, not "outright deflation").
+        latest = cpi.get("latest_value")
+        if latest:
+            derived["cpi_monthly_pct"] = round(float(cpi["change"]) / float(latest) * 100, 4)
     ur = data.get("unemployment", {})
     if "latest_value" in ur:
         derived["unemployment_rate"] = ur["latest_value"]
@@ -146,7 +152,14 @@ def format_fred_report(data: dict) -> str:
         elif "latest_value" in d:
             lines.append(f"- **{label}**: {d['latest_value']:.2f} (as of {d['latest_date']})")
     if "cpi_monthly_change" in derived:
-        lines.append(f"- **CPI Monthly Change**: {derived['cpi_monthly_change']}")
+        lines.append(
+            f"- **CPI Monthly Change**: {derived['cpi_monthly_change']} index points"
+        )
+    if "cpi_monthly_pct" in derived:
+        lines.append(
+            f"- **CPI Monthly % Change (MoM)**: {derived['cpi_monthly_pct']:.4f}% "
+            "(this is the rate of change; the index level itself is above)"
+        )
     lines.append("")
 
     lines.append("## Monetary Policy")

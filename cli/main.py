@@ -782,6 +782,27 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path, config: dict 
         content = "\n\n".join(f"### {name}\n{text}" for name, text in analyst_parts)
         sections.append(f"## I. Analyst Team Reports\n\n{content}")
 
+    # 1b. Canonical Facts Snapshot — render the reconciled numbers block the
+    # downstream agents argued from, so readers can verify [Snapshot] / [Canonical
+    # Facts] citations instead of seeing them referenced but never shown.
+    facts_snapshot = final_state.get("facts_snapshot", "")
+    claim_audit = final_state.get("claim_audit", "")
+    if facts_snapshot:
+        snapshot_dir = save_path / "1b_facts_snapshot"
+        snapshot_dir.mkdir(exist_ok=True)
+        (snapshot_dir / "facts_snapshot.md").write_text(facts_snapshot, encoding="utf-8")
+        snapshot_content = facts_snapshot
+        if claim_audit:
+            (snapshot_dir / "claim_audit.md").write_text(claim_audit, encoding="utf-8")
+            snapshot_content += "\n\n### Claim Audit\n" + claim_audit
+        sections.append(
+            "## I-b. Canonical Facts Snapshot\n\n"
+            "The reconciled key figures every downstream agent (researchers, "
+            "trader, risk, portfolio manager) argued from. Where analysts "
+            "disagreed on a number, the snapshot records the resolution.\n\n"
+            f"{snapshot_content}"
+        )
+
     # 2. Research
     if final_state.get("investment_debate_state"):
         research_dir = save_path / "2_research"
@@ -878,6 +899,13 @@ def display_complete_report(final_state):
         console.print(Panel("[bold]I. Analyst Team Reports[/bold]", border_style="cyan"))
         for title, content in analysts:
             console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
+
+    # I-b. Canonical Facts Snapshot
+    if final_state.get("facts_snapshot"):
+        console.print(Panel("[bold]I-b. Canonical Facts Snapshot[/bold]", border_style="cyan"))
+        console.print(Panel(Markdown(final_state["facts_snapshot"]), title="Canonical Facts Snapshot", border_style="blue", padding=(1, 2)))
+        if final_state.get("claim_audit"):
+            console.print(Panel(Markdown(final_state["claim_audit"]), title="Claim Audit", border_style="blue", padding=(1, 2)))
 
     # II. Research Team Reports
     if final_state.get("investment_debate_state"):

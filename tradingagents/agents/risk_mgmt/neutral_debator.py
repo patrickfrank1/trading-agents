@@ -71,6 +71,7 @@ Synthesize the two sides critically and propose the evidence-based position stru
             "current_conservative_response": risk_debate_state.get("current_conservative_response", ""),
             "current_neutral_response": argument,
             "count": risk_debate_state["count"] + 1,
+            "referee_notes": risk_debate_state.get("referee_notes", ""),
         }
 
         return {"risk_debate_state": new_risk_debate_state}

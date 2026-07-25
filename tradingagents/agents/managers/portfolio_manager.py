@@ -16,6 +16,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_claim_audit_block,
     get_facts_block,
     get_language_instruction,
+    get_report_hygiene_instruction,
     get_reports_digest,
 )
 from tradingagents.agents.utils.structured import (
@@ -75,11 +76,17 @@ def create_portfolio_manager(llm):
 **Step 1 — Arguments Table:**
 First, compile a markdown table of the key BUY and SELL arguments extracted from the risk debate and supporting context below. Each row must include: the argument, its source analyst type, an impact rating (High / Medium / Low), and whether it supports BUY or SELL. Arguments sourced from Business Analyst or Fundamentals Analyst should generally carry High impact; arguments from Macro, Market, News, or Sentiment Analysts should generally carry Medium or Low impact. This table anchors your final decision in transparent, weighted evidence.
 
-**Step 2 — Investment Thesis:**
-Provide a concise summary of the key drivers behind your final decision.
+**Step 2 — Weighted Score:**
+Compute a single net score from -100 to +100 by weighing the arguments table (High = ±20, Medium = ±10, Low = ±5; positive for BUY, negative for SELL; clamp to [-100, +100]). The score must be auditable: a reader tallying the table should arrive at the same number. Map score to rating band (>=+40 Buy, +15..+39 Overweight, -14..+14 Hold, -39..-15 Underweight, <=-40 Sell). If your final rating falls outside the band implied by the score, you MUST explain the override in the investment thesis — silent overrides are not allowed.
 
-**Step 3 — Final Decision:**
-After the table, deliver your final rating and supporting details.
+**Step 3 — Probability-Weighted Scenario Table:**
+Produce a three-row (Bull / Base / Bear) markdown table with explicit probability weights (summing to 100%), a price target per scenario, and the one-sentence driver. Compute and show the probability-weighted expected price. This forces an explicit view on any binary / "show-me" outcomes instead of leaving them implicit in prose.
+
+**Step 4 — Trade Ticket:**
+Resolve the risk team's conflicting sizing and hedge proposals into ONE executable plan. Specify: action (consistent with the rating), position size as % of portfolio, entry/exit levels, hedge structure with concrete strikes and approximate premium (do NOT write "consider a collar" — write "buy 6-mo $110 put / sell $150 call, ~$0 net debit"), and named exit triggers. For a Hold with no new capital, state size = 0% for new capital and give the maintenance plan for existing holders.
+
+**Step 5 — Investment Thesis & Final Decision:**
+Provide a concise summary of the key drivers behind your final decision, then deliver the final rating and supporting details. The rating must be consistent with the weighted score band unless an override is explicitly justified.
 
 **Context:**
 - Research Manager's investment plan: **{research_plan}**
@@ -92,7 +99,7 @@ After the table, deliver your final rating and supporting details.
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}"""
+Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}{get_report_hygiene_instruction()}"""
 
         final_trade_decision = invoke_structured_or_freetext(
             structured_llm,
@@ -113,6 +120,7 @@ Be decisive and ground every conclusion in specific evidence from the analysts.{
             "current_conservative_response": risk_debate_state["current_conservative_response"],
             "current_neutral_response": risk_debate_state["current_neutral_response"],
             "count": risk_debate_state["count"],
+            "referee_notes": risk_debate_state.get("referee_notes", ""),
         }
 
         return {

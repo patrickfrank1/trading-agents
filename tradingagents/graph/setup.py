@@ -10,6 +10,7 @@ from tradingagents.agents.utils.facts_snapshot import create_facts_snapshot
 from tradingagents.agents.utils.fact_check import create_fact_check
 from tradingagents.agents.utils.fact_reconciliation import create_fact_reconciliation
 from tradingagents.agents.researchers.debate_referee import create_debate_referee
+from tradingagents.agents.risk_mgmt.risk_debate_referee import create_risk_debate_referee
 
 from .conditional_logic import ConditionalLogic
 
@@ -136,6 +137,14 @@ class GraphSetup:
         # Reconciliation fetches raw data and reasons over it; use the deep LLM.
         fact_reconciliation_node = create_fact_reconciliation(self.deep_thinking_llm)
 
+        # Risk-debate referee: scores each Aggressive/Conservative/Neutral
+        # round for convergence so the risk debate can end early instead of
+        # running fixed restating rounds. No-op when its flag is off.
+        risk_debate_referee_node = create_risk_debate_referee(
+            self.quick_thinking_llm,
+            enabled=self.conditional_logic.enable_risk_debate_referee,
+        )
+
         # Create risk analysis nodes
         aggressive_analyst = create_aggressive_debator(self._debater_llm("aggressive"))
         neutral_analyst = create_neutral_debator(self._debater_llm("neutral"))
@@ -165,6 +174,7 @@ class GraphSetup:
         workflow.add_node("Aggressive Analyst", aggressive_analyst)
         workflow.add_node("Neutral Analyst", neutral_analyst)
         workflow.add_node("Conservative Analyst", conservative_analyst)
+        workflow.add_node("Risk Debate Referee", risk_debate_referee_node)
         workflow.add_node("Portfolio Manager", portfolio_manager_node)
 
         # Define edges
@@ -243,9 +253,13 @@ class GraphSetup:
                 "Portfolio Manager": "Portfolio Manager",
             },
         )
+        # After Neutral speaks, route through the Risk Debate Referee (which
+        # scores the round for convergence) instead of straight back to
+        # Aggressive. The referee then decides: another round or the PM.
+        workflow.add_edge("Neutral Analyst", "Risk Debate Referee")
         workflow.add_conditional_edges(
-            "Neutral Analyst",
-            self.conditional_logic.should_continue_risk_analysis,
+            "Risk Debate Referee",
+            self.conditional_logic.should_continue_after_risk_referee,
             {
                 "Aggressive Analyst": "Aggressive Analyst",
                 "Portfolio Manager": "Portfolio Manager",

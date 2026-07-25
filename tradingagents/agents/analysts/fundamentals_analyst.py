@@ -17,6 +17,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_income_statement,
     get_insider_transactions,
     get_language_instruction,
+    get_report_hygiene_instruction,
     get_analyst_estimates,
     get_credit_and_debt_detail,
     get_earnings_calendar,
@@ -123,7 +124,9 @@ def create_fundamentals_analyst(llm):
             + " Pull SEC-filing footnote signals that resolve common debate threads: `get_debt_maturity_schedule` (year-by-year debt maturities — kills refinancing-risk assertions), `get_off_balance_sheet_arrangements` (leases, guarantees, VIE commitments), `get_rpo_disaggregation` (remaining performance obligations split short-term vs long-term — resolves order-book composition debates), `get_segment_geographic_reporting` (segment/geography revenue and income), `get_critical_accounting_estimates` and `get_internal_controls` (management-flagged estimate uncertainty and any material weakness), `get_stock_based_compensation` (SBC cost and dilution overhang), `get_goodwill_intangibles`, `get_pension_opeb`, `get_uncertain_tax_positions`, `get_variable_interest_entities`, `get_regulatory_capital` (banks/insurers), `get_commitments_contingencies`, `get_proved_reserves_mine_safety` (E&P/miners)."
             + " Use `get_institutional_13f_filings` and `get_insider_form4_activity` for raw ownership/insider signals, and `get_prospectus_disclosure` if the company recently filed an S-3/424B (dilution/use of proceeds)."
             + " Not every tool applies to every company — pick the filing signals relevant to this company's sector and capital structure."
-            + get_language_instruction(),
+            + "\n\n**Valuation hygiene (mandatory):** When a valuation engine prints a ⚠️ QA/sanity warning (e.g. comp-set outlier flag, extreme DCF fair value, >20x spread), surface that warning in your report and treat the flagged output as a bounded estimate, not a precise value. Do NOT silently include a comp-set median you have been told is distorted by hyper-growth peers, and do NOT present a DCF fair value implying >80% downside as if it were settled intrinsic value. Cross-check flagged outputs against EPV, comps, and the business case."
+            + get_language_instruction()
+            + get_report_hygiene_instruction(),
         )
 
         prompt = ChatPromptTemplate.from_messages(

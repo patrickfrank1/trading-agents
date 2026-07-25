@@ -104,6 +104,28 @@ def get_language_instruction() -> str:
     return f" Write your entire response in {lang}."
 
 
+def get_report_hygiene_instruction() -> str:
+    """Instruction that keeps an analyst's scratchpad out of the final report.
+
+    Without this, models prepend meta-commentary to their report — e.g.
+    "Now I have a complete picture. Let me compile the full analysis." or
+    mid-report self-corrections like "wait, actually let me recalculate" —
+    and that stream-of-consciousness leaks straight into the saved markdown.
+    The report body must be the finished deliverable, not the reasoning trace.
+    """
+    return (
+        "\n\n**Report hygiene (mandatory):** Your response IS the final report "
+        "saved verbatim to disk and read by downstream agents and the user. "
+        "Do NOT include any meta-commentary, narration, or thinking trace — "
+        "no preamble like \"Let me compile\", \"Now I have the data\", "
+        "\"I'll now analyze\", no mid-report self-corrections like "
+        "\"wait, let me recalculate\" or \"actually\". If you need to revise "
+        "a number, just state the correct number. Begin directly with the "
+        "report heading and content. Do your reasoning internally; output "
+        "only the polished deliverable."
+    )
+
+
 def build_instrument_context(ticker: str) -> str:
     """Describe the exact instrument so agents preserve exchange-qualified tickers."""
     return (

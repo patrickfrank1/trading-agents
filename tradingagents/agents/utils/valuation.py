@@ -107,6 +107,103 @@ def _fetch_peer_tickers(ticker: str, info: dict) -> list[str]:
     return [q["symbol"] for q in quotes[:5] if "symbol" in q]
 
 
+# Absolute caps beyond which a multiple is meaningless for median comp work.
+# A sector screen for a large-cap like ORCL can return hyper-growth names
+# (e.g. NVIDIA, Palantir, Zscaler) whose P/S of 40x or EV/EBITDA of 200x
+# drag the median to absurd levels and produce "implied FV" of $2,500/share.
+# These caps are upper bounds for a *reasonable* enterprise-software peer;
+# anything above is treated as an outlier and excluded from the median.
+_MULTIPLE_OUTLIER_CAPS = {
+    "Trailing P/E": 150.0,
+    "Forward P/E": 150.0,
+    "P/B": 30.0,
+    "P/S": 50.0,
+    "EV/EBITDA": 100.0,
+    "EV/Revenue": 50.0,
+}
+
+
+def _robust_peer_medians(peer_multiples: dict[str, list[float]]) -> dict[str, float]:
+    """Compute peer median multiples with outlier filtering.
+
+    Two-stage filter:
+      1. Drop any value above its multiple's absolute cap
+         (``_MULTIPLE_OUTLIER_CAPS``) — these are almost always hyper-growth
+         or distressed names that don't belong in a median comp.
+      2. Drop values > 5x the median of the surviving set (relative outlier
+         pass) so one remaining extreme name can't dominate.
+
+    Returns a {label: median} dict. The caller surfaces a QA warning when a
+    multiple lost peers to filtering, so the analyst knows the set was
+    cleaned rather than trusting a distorted median silently.
+    """
+    medians: dict[str, float] = {}
+    for label, vals in peer_multiples.items():
+        if not vals:
+            continue
+        cap = _MULTIPLE_OUTLIER_CAPS.get(label, math.inf)
+        stage1 = [v for v in vals if v <= cap]
+        if not stage1:
+            # All peers were outliers — keep the raw median but it will be
+            # flagged downstream; don't silently drop everything.
+            stage1 = list(vals)
+        sorted1 = sorted(stage1)
+        med1 = sorted1[len(sorted1) // 2]
+        stage2 = [v for v in stage1 if v <= med1 * 5 or med1 == 0]
+        if not stage2:
+            stage2 = stage1
+        final = sorted(stage2)
+        medians[label] = final[len(final) // 2]
+    return medians
+
+
+def _peer_set_qa_note(
+    peer_multiples: dict[str, list[float]],
+    peer_median_multiples: dict[str, float],
+    peer_count: int,
+) -> str:
+    """Return a QA warning when the peer set needed outlier cleaning or is thin.
+
+    This is the comp-set quality gate: it makes the analyst (and the PM who
+    reads the report) aware that the medians are unreliable, instead of
+    letting a distorted P/S of 124x flow into the decision unchallenged.
+    """
+    if peer_count == 0:
+        return (
+            "> ⚠️ **Comp-set QA:** No peers returned by the sector screen. "
+            "Comparable-company multiples are unavailable; disregard any "
+            "implied valuation derived from peer medians."
+        )
+
+    dropped: list[str] = []
+    for label, vals in peer_multiples.items():
+        if not vals:
+            continue
+        cap = _MULTIPLE_OUTLIER_CAPS.get(label, math.inf)
+        n_before = len(vals)
+        n_after = len([v for v in vals if v <= cap])
+        if n_after < n_before:
+            dropped.append(f"{label} ({n_before - n_after} outlier(s) removed)")
+
+    notes = []
+    if dropped:
+        notes.append(
+            "> ⚠️ **Comp-set QA:** The sector screen returned hyper-growth / "
+            "high-multiple peers whose multiples are not comparable to this "
+            "company. Outliers were removed before computing the median: "
+            + "; ".join(dropped)
+            + ". Treat P/S, EV/EBITDA, and EV/Revenue implied values with "
+            "skepticism — prefer P/E- and P/B-based implied values, which are "
+            "less distorted by growth premia."
+        )
+    if peer_count < 3:
+        notes.append(
+            f"> ⚠️ **Comp-set QA:** Only {peer_count} peer(s) survived — the "
+            "median is not robust. Do not anchor on a single implied value."
+        )
+    return "\n".join(notes)
+
+
 def run_comps_analysis(ticker: str, curr_date: str | None = None) -> str:
     ticker_obj = yf.Ticker(ticker)
     info = ticker_obj.info
@@ -148,11 +245,7 @@ def run_comps_analysis(ticker: str, curr_date: str | None = None) -> str:
         except Exception:
             continue
 
-    peer_median_multiples = {}
-    for label, vals in peer_multiples.items():
-        if vals:
-            sorted_vals = sorted(vals)
-            peer_median_multiples[label] = sorted_vals[len(sorted_vals) // 2]
+    peer_median_multiples = _robust_peer_medians(peer_multiples)
 
     implied = {}
     if eps > 0 and "Trailing P/E" in peer_median_multiples:
@@ -202,6 +295,10 @@ def run_comps_analysis(ticker: str, curr_date: str | None = None) -> str:
     for label, _ in _MULTIPLE_KEYS:
         if label in peer_median_multiples:
             lines.append(f"- **{label}:** {peer_median_multiples[label]:.2f}x")
+
+    qa_note = _peer_set_qa_note(peer_multiples, peer_median_multiples, len(peer_data))
+    if qa_note:
+        lines += ["", qa_note]
 
     lines += [
         "",

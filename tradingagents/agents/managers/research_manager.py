@@ -7,6 +7,7 @@ from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_claim_audit_block,
     get_facts_block,
+    get_report_hygiene_instruction,
     get_reports_digest,
 )
 from tradingagents.agents.utils.structured import (
@@ -58,7 +59,9 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
 {claim_audit_block}
 
 **Debate History:**
-{history}"""
+{history}
+
+{get_report_hygiene_instruction()}"""
 
         investment_plan = invoke_structured_or_freetext(
             structured_llm,

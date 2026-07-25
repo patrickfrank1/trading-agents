@@ -2,6 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_language_instruction,
+    get_report_hygiene_instruction,
     get_company_profile,
     get_sector_performance,
     get_peer_comparison,
@@ -168,7 +169,8 @@ def create_business_analyst(llm):
             "18. Would I be comfortable owning this company if the stock market closed for 10 years?\n"
             "19. What is the company's intrinsic value?\n"
             "20. Is the stock trading at a meaningful discount to intrinsic value (margin of safety)?"
-            + get_language_instruction(),
+            + get_language_instruction()
+            + get_report_hygiene_instruction(),
         )
 
         prompt = ChatPromptTemplate.from_messages(

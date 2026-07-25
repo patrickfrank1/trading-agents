@@ -14,6 +14,7 @@ class ConditionalLogic:
         enable_debate_referee=True,
         enable_fact_check=True,
         enable_fact_reconciliation=True,
+        enable_risk_debate_referee=True,
     ):
         """Initialize with configuration parameters."""
         self.max_debate_rounds = max_debate_rounds
@@ -22,6 +23,7 @@ class ConditionalLogic:
         self.enable_debate_referee = enable_debate_referee
         self.enable_fact_check = enable_fact_check
         self.enable_fact_reconciliation = enable_fact_reconciliation
+        self.enable_risk_debate_referee = enable_risk_debate_referee
 
     def should_continue_market(self, state: AgentState):
         """Determine if market analysis should continue."""
@@ -105,7 +107,13 @@ class ConditionalLogic:
         return "Research Manager"
 
     def should_continue_risk_analysis(self, state: AgentState) -> str:
-        """Determine if risk analysis should continue."""
+        """Determine if risk analysis should continue.
+
+        After Aggressive and Conservative speak, route to the next analyst
+        unless the round cap is already reached. After Neutral speaks, the
+        graph routes to the Risk Debate Referee instead, which then calls
+        ``should_continue_after_risk_referee``.
+        """
         if (
             state["risk_debate_state"]["count"] >= 3 * self.max_risk_discuss_rounds
         ):  # 3 rounds of back-and-forth between 3 agents
@@ -114,4 +122,20 @@ class ConditionalLogic:
             return "Conservative Analyst"
         if state["risk_debate_state"]["latest_speaker"].startswith("Conservative"):
             return "Neutral Analyst"
+        return "Aggressive Analyst"
+
+    def should_continue_after_risk_referee(self, state: AgentState) -> str:
+        """Route after the Risk Debate Referee: another round or the PM.
+
+        Stops when the round cap is reached OR the referee signalled
+        convergence (all three analysts only restating themselves). When the
+        referee is disabled, falls back to the pure round-cap behaviour.
+        """
+        cap_reached = (
+            state["risk_debate_state"]["count"] >= 3 * self.max_risk_discuss_rounds
+        )
+        if cap_reached:
+            return "Portfolio Manager"
+        if self.enable_risk_debate_referee and state.get("risk_debate_converged", False):
+            return "Portfolio Manager"
         return "Aggressive Analyst"

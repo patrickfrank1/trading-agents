@@ -216,7 +216,11 @@ def _get_stock_stats_bulk(
 
     if indicator in CUSTOM_INDICATORS:
         if indicator == "volume":
-            df["volume"] = df["close"]  # stockstats lowercases; raw volume is already present
+            # stockstats.wrap lowercases the OHLCV columns, so a real "volume"
+            # column already exists. Do NOT overwrite it with close — that made
+            # the volume indicator silently return prices (analysts then had to
+            # mine raw OHLCV records to recover real volume).
+            pass
         elif indicator == "donchian_upper":
             df[indicator] = df["high"].rolling(window=20, min_periods=1).max()
         elif indicator == "donchian_lower":

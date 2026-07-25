@@ -61,6 +61,12 @@ DEFAULT_CONFIG = {
     "enable_debate_referee": True,
     "enable_fact_check": True,
     "enable_fact_reconciliation": True,
+    # Risk-debate referee: mirrors the bull/bear debate referee for the
+    # Aggressive/Conservative/Neutral debate. Stops the risk debate from
+    # running fixed restating rounds once all three analysts are only
+    # recycling prior arguments (e.g. re-proposing near-identical collar
+    # structures with tweaked strikes).
+    "enable_risk_debate_referee": True,
     "debate_temperatures": {
         "bull": 0.7,
         "bear": 0.3,

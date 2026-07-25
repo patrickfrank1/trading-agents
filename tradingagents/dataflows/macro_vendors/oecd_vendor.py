@@ -74,6 +74,7 @@ OECD_SERIES = [
         "dataflow_base": "https://sdmx.oecd.org/public/rest/data/",
         "country": "USA",
         "label": "US Real GDP Growth (Quarterly %, SA)",
+        "unit": "percent",
     },
     {
         "key": "usa_cpi_monthly",
@@ -83,7 +84,12 @@ OECD_SERIES = [
         "dataflow": "OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL",
         "dataflow_base": "https://sdmx.oecd.org/public/rest/data/",
         "country": "USA",
-        "label": "US CPI All Items (Index, 2015=100)",
+        # CPALTT01.M is the month-over-month CPI growth rate, NOT the index
+        # level. The previous label ("Index, 2015=100") made analysts read a
+        # value of -0.0011 as the index itself going negative and conclude
+        # the economy had hit outright deflation — a unit confusion.
+        "label": "US CPI All Items (Monthly % Change, MoM)",
+        "unit": "percent_mom",
     },
     {
         "key": "usa_unemployment",
@@ -93,6 +99,7 @@ OECD_SERIES = [
         "dataflow_base": "https://sdmx.oecd.org/archive/rest/data/",
         "country": "USA",
         "label": "US Unemployment Rate (%)",
+        "unit": "percent",
     },
 ]
 
@@ -339,17 +346,18 @@ def format_oecd_report(data: dict) -> str:
             continue
         any_data = True
         label = d.get("label", key)
+        unit = series_cfg.get("unit", "raw")
         latest = d.get("latest", {})
         history = d.get("history", [])
         lines.append(f"## {label}")
+        lines.append(f"*Unit: {_unit_description(unit)}*")
         if latest:
-            val = f"{latest.get('value', 'N/A'):,.2f}" if latest["value"] > 100 else f"{latest.get('value', 'N/A'):.4f}"
+            val = _format_value(latest.get("value"), unit)
             lines.append(f"- **Latest**: {val} ({latest.get('period', 'N/A')})")
         if history and len(history) > 1:
             lines.append("  Recent values:")
             for obs in history[:5]:
-                val = f"{obs['value']:,.2f}" if obs["value"] > 100 else f"{obs['value']:.4f}"
-                lines.append(f"  - {obs['period']}: {val}")
+                lines.append(f"  - {obs['period']}: {_format_value(obs['value'], unit)}")
         lines.append("")
 
     if not any_data:
@@ -357,3 +365,35 @@ def format_oecd_report(data: dict) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+def _unit_description(unit: str) -> str:
+    """Human-readable description of a series' unit, so analysts don't
+    misinterpret a growth rate as an index level (or vice versa)."""
+    return {
+        "percent": "% (level, e.g. unemployment rate or interest rate)",
+        "percent_mom": "% change vs. previous month (a rate, NOT an index level — can be negative)",
+        "percent_qoq": "% change vs. previous quarter (a rate, NOT an index level)",
+        "index": "index level (base year in label)",
+        "raw": "raw value",
+    }.get(unit, "raw value")
+
+
+def _format_value(value, unit: str) -> str:
+    """Format an observation according to its unit.
+
+    Replaces the old ``value > 100`` heuristic, which guessed index-vs-rate
+    from the magnitude and caused a monthly CPI growth rate of -0.0011 to be
+    labelled as an index that had "dropped below zero".
+    """
+    if value is None:
+        return "N/A"
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if unit in ("percent", "percent_mom", "percent_qoq"):
+        return f"{value:.4f}%"
+    if unit == "index":
+        return f"{value:,.2f}"
+    return f"{value:,.4f}"

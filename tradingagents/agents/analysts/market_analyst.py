@@ -4,6 +4,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_indicators,
     get_language_instruction,
     get_option_greeks,
+    get_report_hygiene_instruction,
     get_stock_data,
     get_option_positioning,
     get_short_interest,
@@ -64,6 +65,7 @@ Options Positioning & Short Interest:
 - Select indicators that provide diverse and complementary information. Avoid redundancy (e.g., do not select both rsi and stochrsi). Also briefly explain why they are suitable for the given market context. When you tool call, please use the exact name of the indicators provided above as they are defined parameters, otherwise your call will fail. Please make sure to call get_stock_data first to retrieve the CSV that is needed to generate indicators. Then use get_indicators with the specific indicator names. You may also call get_option_greeks to obtain delta and gamma for the options chain, get_option_positioning to read open-interest positioning around key levels, and get_short_interest to gauge short positioning. Write a very detailed and nuanced report of the trends you observe. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."""
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + get_language_instruction()
+            + get_report_hygiene_instruction()
         )
 
         prompt = ChatPromptTemplate.from_messages(
