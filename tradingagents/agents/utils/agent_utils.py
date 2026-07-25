@@ -50,6 +50,17 @@ from tradingagents.agents.utils.business_data_tools import (
     get_8k_filing,
     get_20f_filing,
     get_6k_filing,
+    get_customer_concentration,
+)
+from tradingagents.agents.utils.equity_intel_tools import (
+    get_analyst_estimates,
+    get_credit_and_debt_detail,
+    get_short_interest,
+    get_institutional_holders,
+    get_option_positioning,
+    get_earnings_calendar,
+    get_capital_allocation_history,
+    get_governance,
 )
 
 

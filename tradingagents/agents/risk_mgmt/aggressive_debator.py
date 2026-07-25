@@ -31,7 +31,7 @@ This is a structured debate. Rules of engagement:
 4. CITE every quantitative claim, e.g. [Fundamentals: FCF], [Facts Snapshot: price]. Do not invent figures.
 5. Use the Canonical Facts Snapshot as the single source of truth for numbers.
 6. Do NOT make unvalidated analogies (e.g. "this is just Meta 2022") unless you can show the balance-sheet / cash-flow profiles actually match — the neutral analyst will call out false analogies.
-7. BE CONCISE: Keep this turn under ~500 words. Tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt or prior turns. One concession, one new cited point, one crisp rebuttal. The Portfolio Manager reads the full transcript.
+7. BE CONCISE: Keep this turn under ~1000 words. Tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt or prior turns. One concession, one new cited point, one crisp rebuttal. The Portfolio Manager reads the full transcript.
 
 {facts_block}
 The trader's decision under review:

@@ -31,7 +31,7 @@ This is a structured debate. Rules of engagement:
 4. CITE every quantitative claim, e.g. [Fundamentals: total debt], [Facts Snapshot: price]. Do not invent figures.
 5. Use the Canonical Facts Snapshot as the single source of truth for numbers.
 6. Propose CONCRETE, specific risk controls (stop levels, sizing caps, hedges) tied to the cited numbers — not generic "be cautious."
-7. BE CONCISE: Keep this turn under ~500 words. Tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt or prior turns. One concession, one new cited point, one crisp rebuttal. The Portfolio Manager reads the full transcript.
+7. BE CONCISE: Keep this turn under ~1000 words. Tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt or prior turns. One concession, one new cited point, one crisp rebuttal. The Portfolio Manager reads the full transcript.
 
 {facts_block}
 The trader's decision under review:

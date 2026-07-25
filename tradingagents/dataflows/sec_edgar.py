@@ -656,3 +656,114 @@ def get_6k_filing_data(
         return f"Error fetching SEC 6-K filing for {ticker}: Network error - {e}"
     except Exception as e:
         return f"Error fetching SEC 6-K filing for {ticker}: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Customer concentration / RPO / backlog disclosure extractor
+# ---------------------------------------------------------------------------
+
+_CONCENTRATION_PATTERNS = [
+    re.compile(r"remaining\s+performance\s+obligations?", re.IGNORECASE),
+    re.compile(r"\bbacklog\b", re.IGNORECASE),
+    re.compile(r"major\s+customers?|largest\s+customers?|significant\s+customers?", re.IGNORECASE),
+    re.compile(r"single\s+customer|one\s+customer|any\s+individual\s+customer", re.IGNORECASE),
+    re.compile(r"customer\s+concentration|concentrations?\s+of\s+(?:credit\s+)?risk", re.IGNORECASE),
+    re.compile(r"represented\s+approximately|accounted?\s+for\s+approximately", re.IGNORECASE),
+    re.compile(r"\bdepend(?:s|ent|ence)?\b.{0,40}\bcustomer", re.IGNORECASE),
+    re.compile(r"no\s+single\s+customer.{0,40}\d{1,3}\s*%", re.IGNORECASE),
+]
+
+_CONCENTRATION_CONTEXT = 700
+
+
+def get_customer_concentration_data(
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None,
+) -> str:
+    """Extract customer-concentration, remaining-performance-obligations (RPO),
+    and backlog disclosures from the latest annual (10-K / 20-F) filing.
+
+    These disclosures resolve the most common unresolved debate thread: whether
+    a large order book / RPO is genuine contracted growth or largely legacy
+    support, and whether revenue is concentrated in one or few customers.
+
+    Args:
+        ticker (str): Ticker symbol of the company
+        curr_date (str): Current date in YYYY-MM-DD format (optional)
+    Returns:
+        str: Formatted report with the relevant disclosure passages quoted
+        directly from the filing.
+    """
+    try:
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return (
+                f"Could not find SEC CIK for ticker '{ticker}'. The company may "
+                f"not file with the SEC."
+            )
+
+        filings = _find_filings(
+            cik,
+            {"10-K", "20-F"},
+            max_filings=1,
+            before_date=curr_date,
+        )
+        if not filings:
+            return f"No annual filing found for {ticker} on SEC EDGAR."
+
+        filing = filings[0]
+
+        # Use a cache key scoped to this extractor so the full-text we store
+        # does not collide with the section-extracted 10-K cache.
+        cache_key = f"CONC_{filing['accession']}"
+        cached = _load_filing_cache(ticker, cache_key)
+        if cached is not None:
+            plain_text = cached
+        else:
+            raw = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
+            plain_text = _ingest_complete_filing_text(raw)
+            _save_filing_cache(ticker, cache_key, plain_text)
+
+        matches = []
+        seen_spans = set()
+        for pat in _CONCENTRATION_PATTERNS:
+            for m in pat.finditer(plain_text):
+                start = max(0, m.start() - _CONCENTRATION_CONTEXT // 2)
+                end = min(len(plain_text), m.start() + _CONCENTRATION_CONTEXT // 2)
+                # Collapse to a coarse span to avoid near-duplicate windows.
+                span_key = (start // 400, end // 400)
+                if span_key in seen_spans:
+                    continue
+                seen_spans.add(span_key)
+                snippet = plain_text[start:end].strip()
+                snippet = re.sub(r"\s+", " ", snippet)
+                matches.append((m.start(), snippet))
+
+        matches.sort(key=lambda x: x[0])
+
+        lines = [
+            f"# Customer Concentration / RPO / Backlog Disclosures for {ticker.upper()}",
+            f"Source: {filing['form_type']} filed {filing['filing_date']}",
+            f"Accession: {filing['accession']}",
+            f"Retrieved: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+        ]
+        if not matches:
+            lines.append(
+                "No customer-concentration, RPO, or backlog disclosures matched "
+                "in this filing. The company may not be required to disclose them "
+                "or may describe them differently — review the full 10-K Item 1 "
+                "(Business) and MD&A."
+            )
+        else:
+            lines.append(f"Found {len(matches)} relevant passage(s):\n")
+            for i, (_, snippet) in enumerate(matches[:12], 1):
+                lines.append(f"## Passage {i}")
+                lines.append(f"...{snippet}...")
+                lines.append("")
+
+        return "\n".join(lines)
+
+    except urllib.error.URLError as e:
+        return f"Error fetching concentration data for {ticker}: Network error - {e}"
+    except Exception as e:
+        return f"Error fetching concentration data for {ticker}: {e}"

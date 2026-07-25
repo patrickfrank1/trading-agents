@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 from typing import Annotated
 from tradingagents.dataflows.interface import route_to_vendor
-from tradingagents.dataflows.sec_edgar import get_10k_filing_data, get_10q_filing_data, get_8k_filing_data, get_20f_filing_data, get_6k_filing_data
+from tradingagents.dataflows.sec_edgar import get_10k_filing_data, get_10q_filing_data, get_8k_filing_data, get_20f_filing_data, get_6k_filing_data, get_customer_concentration_data
 
 
 @tool
@@ -171,3 +171,25 @@ def get_6k_filing(
         str: Content from the last 3 6-K reports
     """
     return get_6k_filing_data(ticker, curr_date)
+
+
+@tool
+def get_customer_concentration(
+    ticker: Annotated[str, "ticker symbol"],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+) -> str:
+    """Extract customer-concentration, remaining-performance-obligations (RPO),
+    and backlog disclosures from the latest annual (10-K / 20-F) filing.
+
+    Use this to resolve whether a large order book / RPO is genuine contracted
+    growth or largely legacy support, and whether revenue is concentrated in
+    one or a few customers — a question that otherwise lingers unresolved
+    through the entire debate.
+
+    Args:
+        ticker (str): Ticker symbol of the company
+        curr_date (str): Current date you are trading at, yyyy-mm-dd (optional)
+    Returns:
+        str: Relevant disclosure passages quoted directly from the filing
+    """
+    return get_customer_concentration_data(ticker, curr_date)

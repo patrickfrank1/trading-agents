@@ -5,6 +5,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
     get_option_greeks,
     get_stock_data,
+    get_option_positioning,
+    get_short_interest,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -19,6 +21,8 @@ def create_market_analyst(llm):
             get_stock_data,
             get_indicators,
             get_option_greeks,
+            get_option_positioning,
+            get_short_interest,
         ]
 
         system_message = (
@@ -53,7 +57,11 @@ Volume-Based Indicators:
 Options Greeks:
 - get_option_greeks: Computes Black-Scholes delta and gamma for near-the-money call and put options using implied volatility from the live options chain. Usage: Assess directional exposure (delta) and the rate at which that exposure changes with price moves (gamma). Tips: High gamma near expiration signals large rapid changes in delta; use alongside ATR for a complete risk picture.
 
-- Select indicators that provide diverse and complementary information. Avoid redundancy (e.g., do not select both rsi and stochrsi). Also briefly explain why they are suitable for the given market context. When you tool call, please use the exact name of the indicators provided above as they are defined parameters, otherwise your call will fail. Please make sure to call get_stock_data first to retrieve the CSV that is needed to generate indicators. Then use get_indicators with the specific indicator names. You may also call get_option_greeks to obtain delta and gamma for the options chain. Write a very detailed and nuanced report of the trends you observe. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."""
+Options Positioning & Short Interest:
+- get_option_positioning: Total open interest, put/call OI ratio, average implied volatility, and the strikes with the largest open interest for the nearest expirations. Usage: Read positioning around key price levels (support/resistance and max-pain proxies) and gauge whether the tape is positioned for a bounce or another leg down.
+- get_short_interest: Short % of float, days to cover (short ratio), and shares short. Usage: Assess positioning / squeeze risk, especially around sharp drawdowns.
+
+- Select indicators that provide diverse and complementary information. Avoid redundancy (e.g., do not select both rsi and stochrsi). Also briefly explain why they are suitable for the given market context. When you tool call, please use the exact name of the indicators provided above as they are defined parameters, otherwise your call will fail. Please make sure to call get_stock_data first to retrieve the CSV that is needed to generate indicators. Then use get_indicators with the specific indicator names. You may also call get_option_greeks to obtain delta and gamma for the options chain, get_option_positioning to read open-interest positioning around key levels, and get_short_interest to gauge short positioning. Write a very detailed and nuanced report of the trends you observe. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."""
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + get_language_instruction()
         )

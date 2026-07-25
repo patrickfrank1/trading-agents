@@ -32,7 +32,7 @@ This is a structured debate. Rules of engagement:
 4. CITE every quantitative claim, e.g. [Fundamentals: D/E], [Facts Snapshot: price]. Do not invent figures.
 5. Use the Canonical Facts Snapshot as the single source of truth for numbers.
 6. Propose a position structure (size, stops, hedges, scaling) that reflects the actual risk/reward, not a generic "split the difference."
-7. BE CONCISE: Keep this turn under ~500 words. Tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt or prior turns. One concession from each side, one new cited point, one crisp synthesis. The Portfolio Manager reads the full transcript.
+7. BE CONCISE: Keep this turn under ~1000 words. Tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt or prior turns. One concession from each side, one new cited point, one crisp synthesis. The Portfolio Manager reads the full transcript.
 
 {facts_block}
 The trader's decision under review:

@@ -63,6 +63,15 @@ from tradingagents.agents.utils.agent_utils import (
     get_8k_filing,
     get_20f_filing,
     get_6k_filing,
+    get_customer_concentration,
+    get_analyst_estimates,
+    get_credit_and_debt_detail,
+    get_short_interest,
+    get_institutional_holders,
+    get_option_positioning,
+    get_earnings_calendar,
+    get_capital_allocation_history,
+    get_governance,
 )
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -240,6 +249,8 @@ class TradingAgentsGraph:
                     get_stock_data,
                     get_indicators,
                     get_option_greeks,
+                    get_option_positioning,
+                    get_short_interest,
                 ]
             ),
             "social": ToolNode(
@@ -254,6 +265,7 @@ class TradingAgentsGraph:
                     get_news,
                     get_global_news,
                     get_insider_transactions,
+                    get_institutional_holders,
                 ]
             ),
             "fundamentals": ToolNode(
@@ -273,6 +285,11 @@ class TradingAgentsGraph:
                     compute_vc_valuation,
                     compute_epv_valuation,
                     compute_sotp_valuation,
+                    # Equity-intelligence tools that test valuation contradictions
+                    get_analyst_estimates,
+                    get_credit_and_debt_detail,
+                    get_earnings_calendar,
+                    get_capital_allocation_history,
                 ]
             ),
             "macro": ToolNode(
@@ -301,6 +318,8 @@ class TradingAgentsGraph:
                     get_8k_filing,
                     get_20f_filing,
                     get_6k_filing,
+                    get_customer_concentration,
+                    get_governance,
                 ]
             ),
         }

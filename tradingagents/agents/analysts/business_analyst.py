@@ -10,6 +10,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_8k_filing,
     get_20f_filing,
     get_6k_filing,
+    get_customer_concentration,
+    get_governance,
 )
 
 
@@ -27,6 +29,8 @@ def create_business_analyst(llm):
             get_8k_filing,
             get_20f_filing,
             get_6k_filing,
+            get_customer_concentration,
+            get_governance,
         ]
 
         system_message = (
@@ -47,7 +51,9 @@ def create_business_analyst(llm):
             "- `get_8k_filing`: Last 2 US current reports for recent material events.\n"
             "- `get_company_profile`: Company overview and business description.\n"
             "- `get_peer_comparison`: Financial metrics vs direct competitors.\n"
-            "- `get_sector_performance`: Sector/industry benchmark performance.\n\n"
+            "- `get_sector_performance`: Sector/industry benchmark performance.\n"
+            "- `get_customer_concentration`: Extracts customer-concentration, remaining-performance-obligations (RPO), and backlog disclosures directly from the latest annual filing. Use this to resolve whether a large RPO/backlog is genuine contracted growth or legacy support, and whether revenue depends on one or a few customers.\n"
+            "- `get_governance`: Ownership concentration (insider/institutional %, top holders). Use this to flag concentrated founder/insider control and governance risk.\n\n"
             "After gathering all data, write a comprehensive business analysis report that "
             "answers each of the following questions with specific evidence, numbers, and "
             "quotes from the filings:\n\n"

@@ -28,7 +28,7 @@ This is a structured ADVERSARIAL DEBATE, not a doom-scroll. Your credibility dep
 3. REFUTE: Critically analyze the bull's remaining strongest points with specific data. Expose over-optimistic assumptions. Do not strawman.
 4. CITE: Every quantitative claim must cite its source, e.g. [Fundamentals: total debt], [Business: churn], [Market: drawdown], [Facts Snapshot: price]. Do not invent figures.
 5. Use the Canonical Facts Snapshot below as the single source of truth for numbers — do not re-derive or contradict them.
-6. BE CONCISE: Keep this turn under ~500 words. Make your points as tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt. One concession, one new cited argument, one crisp rebuttal. Brevity is a feature; the Research Manager reads the full transcript.
+6. BE CONCISE: Keep this turn under ~2000 words. Make your points as tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt. One concession, one new cited argument, one crisp rebuttal. Brevity is a feature; the Research Manager reads the full transcript.
 
 **Your evidentiary focus (draw the bulk of your case here, but you may use any report):**
 - Balance-sheet risk: leverage, debt maturity profile, refinancing risk, off-balance-sheet commitments, tangible book value (Fundamentals)

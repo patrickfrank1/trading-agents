@@ -17,6 +17,10 @@ from tradingagents.agents.utils.agent_utils import (
     get_income_statement,
     get_insider_transactions,
     get_language_instruction,
+    get_analyst_estimates,
+    get_credit_and_debt_detail,
+    get_earnings_calendar,
+    get_capital_allocation_history,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -68,6 +72,10 @@ def create_fundamentals_analyst(llm):
             get_cashflow,
             get_income_statement,
             get_insider_transactions,
+            get_analyst_estimates,
+            get_credit_and_debt_detail,
+            get_earnings_calendar,
+            get_capital_allocation_history,
         ] + valuation_tools
 
         system_message = (
@@ -75,6 +83,9 @@ def create_fundamentals_analyst(llm):
             + VALUATION_METHODS_GUIDE
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
             + " Use the available tools: `get_fundamentals` for comprehensive company analysis, `get_balance_sheet`, `get_cashflow`, and `get_income_statement` for specific financial statements."
+            + " Also call `get_analyst_estimates` to capture sell-side consensus EPS/revenue estimates and price targets — use these to test whether valuation multiples (e.g. forward P/E) are consistent with the consensus EPS trajectory."
+            + " Call `get_credit_and_debt_detail` to report total debt, the long/short-term split, and interest coverage — quote these figures directly so downstream debt/refinancing claims can be verified."
+            + " Call `get_earnings_calendar` for the next earnings date and recent beat/miss history, and `get_capital_allocation_history` for the multi-year buyback/dividend/share-count record."
             + get_language_instruction(),
         )
 
