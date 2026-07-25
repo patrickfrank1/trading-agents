@@ -22,6 +22,28 @@ class NormalizedChatAnthropic(ChatAnthropic):
     def invoke(self, input, config=None, **kwargs):
         return normalize_content(super().invoke(input, config, **kwargs))
 
+    def with_structured_output(self, schema, *, include_raw=False, method=None, **kwargs):
+        # The default ``function_calling`` method forces ``tool_choice``, which
+        # the Anthropic API rejects when thinking/effort is enabled:
+        # "Thinking mode does not support this tool_choice". langchain's own
+        # guard only checks the legacy ``thinking`` dict, not the ``effort``
+        # shorthand, so we detect both here and switch to the native
+        # ``json_schema`` method. That routes through ``output_config.format``
+        # (no ``tool_choice``) and merges cleanly with ``effort`` in the same
+        # ``output_config`` payload.
+        if method is None:
+            thinking_active = (
+                self.thinking is not None
+                and self.thinking.get("type") in ("enabled", "adaptive")
+            )
+            if thinking_active or self.effort is not None:
+                method = "json_schema"
+            else:
+                method = "function_calling"
+        return super().with_structured_output(
+            schema, include_raw=include_raw, method=method, **kwargs
+        )
+
 
 class AnthropicClient(BaseLLMClient):
     """Client for Anthropic Claude models."""
