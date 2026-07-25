@@ -25,7 +25,7 @@ def _search_macro_news(queries, curr_date, look_back_days, limit):
 
     for query in queries:
         search = yf_retry(lambda q=query: yf.Search(
-            q=q,
+            query=q,
             news_count=limit,
             enable_fuzzy_query=True,
         ))

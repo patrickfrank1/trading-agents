@@ -105,10 +105,10 @@ def get_analyst_estimates(
         except (TypeError, ValueError):
             pass
 
-    # EPS / revenue estimates (yfinance analyst_estimates table)
+    # EPS / revenue estimates (yfinance earnings_estimate / revenue_estimate tables)
     for label, attr in (
-        ("EPS Trend", "analyst_estimates"),
-        ("Revenue Estimates", "revenue_estimates"),
+        ("EPS Trend", "earnings_estimate"),
+        ("Revenue Estimates", "revenue_estimate"),
     ):
         try:
             df = yf_retry(lambda a=attr: getattr(t, a))
