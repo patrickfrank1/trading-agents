@@ -2,9 +2,11 @@ from langchain_core.tools import tool
 from typing import Annotated
 from tradingagents.dataflows.interface import route_to_vendor
 from tradingagents.dataflows.sec_edgar import get_10k_filing_data, get_10q_filing_data, get_8k_filing_data, get_20f_filing_data, get_6k_filing_data, get_customer_concentration_data
+from tradingagents.agents.utils.tool_errors import safe_tool
 
 
 @tool
+@safe_tool
 def get_company_profile(
     ticker: Annotated[str, "ticker symbol"],
 ) -> str:
@@ -21,6 +23,7 @@ def get_company_profile(
 
 
 @tool
+@safe_tool
 def get_sector_performance(
     sector: Annotated[str, "sector name to compare against (e.g. Technology, Healthcare)"],
     period: Annotated[str, "time period: '1mo', '3mo', '6mo', '1y', 'ytd'"] = "1y",
@@ -39,6 +42,7 @@ def get_sector_performance(
 
 
 @tool
+@safe_tool
 def get_peer_comparison(
     ticker: Annotated[str, "ticker symbol"],
 ) -> str:
@@ -55,6 +59,7 @@ def get_peer_comparison(
 
 
 @tool
+@safe_tool
 def get_10k_filing(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -79,6 +84,7 @@ def get_10k_filing(
 
 
 @tool
+@safe_tool
 def get_10q_filing(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -101,6 +107,7 @@ def get_10q_filing(
 
 
 @tool
+@safe_tool
 def get_8k_filing(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -124,6 +131,7 @@ def get_8k_filing(
 
 
 @tool
+@safe_tool
 def get_20f_filing(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -149,6 +157,7 @@ def get_20f_filing(
 
 
 @tool
+@safe_tool
 def get_6k_filing(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -174,6 +183,7 @@ def get_6k_filing(
 
 
 @tool
+@safe_tool
 def get_customer_concentration(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,

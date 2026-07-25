@@ -767,3 +767,182 @@ def get_customer_concentration_data(
         return f"Error fetching concentration data for {ticker}: Network error - {e}"
     except Exception as e:
         return f"Error fetching concentration data for {ticker}: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Shared filing-signal extraction infrastructure
+# ---------------------------------------------------------------------------
+
+import urllib.parse
+
+
+def _fetch_filings_text(
+    ticker: str,
+    form_types: set,
+    before_date: str = None,
+    max_filings: int = 2,
+) -> list:
+    """Fetch the plain text of the most recent filings of the given types.
+
+    Returns a list of ``{"filing": <meta>, "text": <plain text>}`` dicts,
+    most-recent first. Plain text is cached per-accession (scoped with a
+    ``TXT_`` prefix so it never collides with the section-extracted caches).
+    """
+    try:
+        cik = _ticker_to_cik(ticker)
+        if not cik:
+            return []
+        filings = _find_filings(
+            cik, form_types, max_filings=max_filings, before_date=before_date
+        )
+    except Exception:
+        return []
+
+    results = []
+    for filing in filings:
+        cache_key = f"TXT_{filing['accession']}"
+        text = _load_filing_cache(ticker, cache_key)
+        if text is None:
+            try:
+                raw = _sec_request(filing["document_url"]).decode("utf-8", errors="replace")
+                text = _ingest_complete_filing_text(raw)
+                _save_filing_cache(ticker, cache_key, text)
+            except Exception:
+                continue
+        results.append({"filing": filing, "text": text})
+    return results
+
+
+def _get_item_section(text: str, item_num: str, max_chars: int = 80000) -> str:
+    """Return the raw text of a single Item section (e.g. '1a', '3', '9a')
+    from a 10-K, or '' if the header cannot be found."""
+    section_defs = {item_num.lower(): f"Item {item_num}"}
+    sections = _extract_sections(text, max_chars=max_chars, section_defs=section_defs)
+    if not sections:
+        return ""
+    # _extract_sections returns a dict keyed by the *label* string; take any value.
+    return next(iter(sections.values()))
+
+
+def _extract_keyword_passages(
+    text: str,
+    patterns: list,
+    context: int = 700,
+    max_passages: int = 8,
+) -> list:
+    """Return de-duplicated text snippets around each pattern match.
+
+    Patterns is a list of compiled regexes. Snippets are coarse-grained
+    de-duplicated (by 400-char buckets) to avoid near-identical windows, and
+    whitespace-collapsed.
+    """
+    matches = []
+    seen = set()
+    for pat in patterns:
+        for m in pat.finditer(text):
+            start = max(0, m.start() - context // 2)
+            end = min(len(text), m.start() + context // 2)
+            span_key = (start // 400, end // 400)
+            if span_key in seen:
+                continue
+            seen.add(span_key)
+            snippet = re.sub(r"\s+", " ", text[start:end]).strip()
+            matches.append((m.start(), snippet))
+    matches.sort(key=lambda x: x[0])
+    return [s for _, s in matches[:max_passages]]
+
+
+def _format_passage_report(
+    title: str,
+    filing: dict,
+    passages: list,
+    not_found_note: str = "",
+) -> str:
+    """Render a passage list into the standard markdown report shape."""
+    lines = [
+        f"# {title}",
+        f"Source: {filing['form_type']} filed {filing['filing_date']}",
+        f"Accession: {filing['accession']}",
+        f"Retrieved: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+    ]
+    if not passages:
+        lines.append(
+            not_found_note
+            or "No relevant disclosures matched in this filing. The company may "
+            "not be required to disclose this, or may describe it differently."
+        )
+    else:
+        lines.append(f"Found {len(passages)} relevant passage(s):\n")
+        for i, snippet in enumerate(passages, 1):
+            lines.append(f"## Passage {i}")
+            lines.append(f"...{snippet}...")
+            lines.append("")
+    return "\n".join(lines)
+
+
+def _edgar_fulltext_search(
+    query: str,
+    forms: list,
+    limit: int = 10,
+) -> list:
+    """Search SEC EDGAR full-text (EFTS) for filings of the given forms.
+
+    Returns a list of dicts: ``{form, date, filer, cik, accession, url}``.
+    Best-effort: returns ``[]`` on any error so callers degrade gracefully.
+    The EFTS index matches the issuer name as it appears on filing cover
+    pages, so a company-name query surfaces third-party filings (13D/13G/13F)
+    that are filed under the investor's CIK, not the issuer's.
+    """
+    try:
+        forms_param = ",".join(forms)
+        url = (
+            "https://efts.sec.gov/LATEST/search-index?"
+            f"q={urllib.parse.quote(query)}&forms={urllib.parse.quote(forms_param)}"
+        )
+        data = json.loads(_sec_request(url))
+        hits = data.get("hits", {}).get("hits", [])
+        out = []
+        for hit in hits[:limit]:
+            src = hit.get("_source", {})
+            adsh = src.get("adsh", "").replace("-", "")
+            ciks = src.get("ciks", [])
+            cik = ciks[0] if ciks else ""
+            file_date = src.get("file_date", "")
+            form = src.get("file_type", "")
+            display = src.get("display_names", [])
+            filer = display[0] if display else ""
+            if adsh and cik:
+                filing_url = (
+                    f"{EDGAR_BASE}/Archives/edgar/data/{cik.lstrip('0')}/{adsh}/"
+                )
+            else:
+                filing_url = ""
+            out.append({
+                "form": form,
+                "date": file_date,
+                "filer": filer,
+                "cik": cik,
+                "accession": src.get("adsh", ""),
+                "url": filing_url,
+            })
+        return out
+    except Exception:
+        return []
+
+
+def _company_name_for_search(ticker: str) -> str:
+    """Best-effort issuer name for EFTS queries (falls back to the ticker)."""
+    try:
+        import yfinance as yf
+        info = yf.Ticker(ticker.upper()).info or {}
+        name = info.get("longName") or info.get("shortName")
+        if name:
+            # Trim legal suffixes that hurt matching.
+            for suffix in (", Inc.", " Inc.", " Corporation", " Corp.", " Ltd.", " Limited"):
+                if name.endswith(suffix):
+                    name = name[: -len(suffix)]
+                    break
+            return name
+    except Exception:
+        pass
+    return ticker

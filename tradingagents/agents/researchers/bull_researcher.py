@@ -28,7 +28,7 @@ This is a structured ADVERSARIAL DEBATE, not a sales pitch. Your credibility dep
 3. REFUTE: Critically analyze the bear's remaining strongest points with specific data. Do not strawman.
 4. CITE: Every quantitative claim must cite its source, e.g. [Fundamentals: FCF], [Business: moat], [Market: drawdown], [Facts Snapshot: price]. Do not invent figures.
 5. Use the Canonical Facts Snapshot below as the single source of truth for numbers — do not re-derive or contradict them.
-6. BE CONCISE: Keep this turn under ~2000 words. Make your points as tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt. One concession, one new cited argument, one crisp rebuttal. Brevity is a feature; the Research Manager reads the full transcript.
+6. BE CONCISE: Keep this turn under ~1000 words. Make your points as tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt. One concession, one new cited argument, one crisp rebuttal. Brevity is a feature; the Research Manager reads the full transcript.
 
 **Your evidentiary focus (draw the bulk of your case here, but you may use any report):**
 - Growth potential, TAM, revenue trajectory, scalability (Business + Fundamentals)

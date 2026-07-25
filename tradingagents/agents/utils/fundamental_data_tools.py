@@ -13,9 +13,11 @@ from tradingagents.agents.utils.valuation import (
     run_epv_analysis,
     run_sotp_valuation,
 )
+from tradingagents.agents.utils.tool_errors import safe_tool
 
 
 @tool
+@safe_tool
 def get_fundamentals(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
@@ -33,6 +35,7 @@ def get_fundamentals(
 
 
 @tool
+@safe_tool
 def get_balance_sheet(
     ticker: Annotated[str, "ticker symbol"],
     freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
@@ -52,6 +55,7 @@ def get_balance_sheet(
 
 
 @tool
+@safe_tool
 def get_cashflow(
     ticker: Annotated[str, "ticker symbol"],
     freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
@@ -71,6 +75,7 @@ def get_cashflow(
 
 
 @tool
+@safe_tool
 def get_income_statement(
     ticker: Annotated[str, "ticker symbol"],
     freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
@@ -90,6 +95,7 @@ def get_income_statement(
 
 
 @tool
+@safe_tool
 def compute_dcf_analysis(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -111,6 +117,7 @@ def compute_dcf_analysis(
 
 
 @tool
+@safe_tool
 def compute_comps_analysis(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -131,6 +138,7 @@ def compute_comps_analysis(
 
 
 @tool
+@safe_tool
 def compute_precedent_transactions(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -151,6 +159,7 @@ def compute_precedent_transactions(
 
 
 @tool
+@safe_tool
 def compute_asset_based_valuation(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -170,6 +179,7 @@ def compute_asset_based_valuation(
 
 
 @tool
+@safe_tool
 def compute_ddm_valuation(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -189,6 +199,7 @@ def compute_ddm_valuation(
 
 
 @tool
+@safe_tool
 def compute_residual_income_valuation(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -208,6 +219,7 @@ def compute_residual_income_valuation(
 
 
 @tool
+@safe_tool
 def compute_lbo_analysis(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -227,6 +239,7 @@ def compute_lbo_analysis(
 
 
 @tool
+@safe_tool
 def compute_vc_valuation(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -246,6 +259,7 @@ def compute_vc_valuation(
 
 
 @tool
+@safe_tool
 def compute_epv_valuation(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
@@ -265,6 +279,7 @@ def compute_epv_valuation(
 
 
 @tool
+@safe_tool
 def compute_sotp_valuation(
     ticker: Annotated[str, "ticker symbol"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,

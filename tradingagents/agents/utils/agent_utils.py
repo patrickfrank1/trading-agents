@@ -62,6 +62,32 @@ from tradingagents.agents.utils.equity_intel_tools import (
     get_capital_allocation_history,
     get_governance,
 )
+from tradingagents.agents.utils.filing_signals_tools import (
+    get_debt_maturity_schedule,
+    get_off_balance_sheet_arrangements,
+    get_segment_geographic_reporting,
+    get_rpo_disaggregation,
+    get_risk_factor_changes,
+    get_legal_proceedings,
+    get_critical_accounting_estimates,
+    get_internal_controls,
+    get_stock_based_compensation,
+    get_goodwill_intangibles,
+    get_pension_opeb,
+    get_uncertain_tax_positions,
+    get_variable_interest_entities,
+    get_regulatory_capital,
+    get_proved_reserves_mine_safety,
+    get_cybersecurity_disclosure,
+    get_properties_capacity,
+    get_commitments_contingencies,
+    get_proxy_governance,
+    get_activist_filings,
+    get_institutional_13f_filings,
+    get_form_8k_events,
+    get_insider_form4_activity,
+    get_prospectus_disclosure,
+)
 
 
 def get_language_instruction() -> str:

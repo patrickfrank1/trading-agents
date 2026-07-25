@@ -58,6 +58,7 @@ class Propagator:
             "facts_snapshot": "",
             "claim_audit": "",
             "debate_converged": False,
+            "tool_errors": [],
         }
 
     def get_graph_args(self, callbacks: Optional[List] = None) -> Dict[str, Any]:

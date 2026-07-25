@@ -1,8 +1,10 @@
 from langchain_core.tools import tool
 from typing import Annotated
 from tradingagents.dataflows.interface import route_to_vendor
+from tradingagents.agents.utils.tool_errors import safe_tool
 
 @tool
+@safe_tool
 def get_indicators(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to get the analysis and report of"],

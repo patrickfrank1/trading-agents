@@ -1,8 +1,10 @@
 from langchain_core.tools import tool
 from typing import Annotated
 from tradingagents.dataflows.interface import route_to_vendor
+from tradingagents.agents.utils.tool_errors import safe_tool
 
 @tool
+@safe_tool
 def get_news(
     ticker: Annotated[str, "Ticker symbol"],
     start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
@@ -21,6 +23,7 @@ def get_news(
     return route_to_vendor("get_news", ticker, start_date, end_date)
 
 @tool
+@safe_tool
 def get_global_news(
     curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
     look_back_days: Annotated[int, "Number of days to look back"] = 30,
@@ -39,6 +42,7 @@ def get_global_news(
     return route_to_vendor("get_global_news", curr_date, look_back_days, limit)
 
 @tool
+@safe_tool
 def get_insider_transactions(
     ticker: Annotated[str, "ticker symbol"],
 ) -> str:

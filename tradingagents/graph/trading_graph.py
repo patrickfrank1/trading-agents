@@ -24,6 +24,7 @@ from tradingagents.agents.utils.agent_states import (
     RiskDebateState,
 )
 from tradingagents.dataflows.config import set_config
+from tradingagents.agents.utils.tool_errors import tool_error_collector
 
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
@@ -72,6 +73,30 @@ from tradingagents.agents.utils.agent_utils import (
     get_earnings_calendar,
     get_capital_allocation_history,
     get_governance,
+    get_debt_maturity_schedule,
+    get_off_balance_sheet_arrangements,
+    get_segment_geographic_reporting,
+    get_rpo_disaggregation,
+    get_risk_factor_changes,
+    get_legal_proceedings,
+    get_critical_accounting_estimates,
+    get_internal_controls,
+    get_stock_based_compensation,
+    get_goodwill_intangibles,
+    get_pension_opeb,
+    get_uncertain_tax_positions,
+    get_variable_interest_entities,
+    get_regulatory_capital,
+    get_proved_reserves_mine_safety,
+    get_cybersecurity_disclosure,
+    get_properties_capacity,
+    get_commitments_contingencies,
+    get_proxy_governance,
+    get_activist_filings,
+    get_institutional_13f_filings,
+    get_form_8k_events,
+    get_insider_form4_activity,
+    get_prospectus_disclosure,
 )
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -290,6 +315,24 @@ class TradingAgentsGraph:
                     get_credit_and_debt_detail,
                     get_earnings_calendar,
                     get_capital_allocation_history,
+                    # SEC-filing footnote signals (financial-statement-level)
+                    get_debt_maturity_schedule,
+                    get_off_balance_sheet_arrangements,
+                    get_segment_geographic_reporting,
+                    get_rpo_disaggregation,
+                    get_critical_accounting_estimates,
+                    get_internal_controls,
+                    get_stock_based_compensation,
+                    get_goodwill_intangibles,
+                    get_pension_opeb,
+                    get_uncertain_tax_positions,
+                    get_variable_interest_entities,
+                    get_regulatory_capital,
+                    get_commitments_contingencies,
+                    get_proved_reserves_mine_safety,
+                    get_institutional_13f_filings,
+                    get_insider_form4_activity,
+                    get_prospectus_disclosure,
                 ]
             ),
             "macro": ToolNode(
@@ -320,6 +363,14 @@ class TradingAgentsGraph:
                     get_6k_filing,
                     get_customer_concentration,
                     get_governance,
+                    # SEC-filing qualitative / governance / event signals
+                    get_risk_factor_changes,
+                    get_legal_proceedings,
+                    get_cybersecurity_disclosure,
+                    get_properties_capacity,
+                    get_proxy_governance,
+                    get_activist_filings,
+                    get_form_8k_events,
                 ]
             ),
         }
@@ -438,6 +489,9 @@ class TradingAgentsGraph:
 
     def _run_graph(self, company_name, trade_date):
         """Execute the graph and write the resulting state to disk and memory log."""
+        # Clear the tool-error collector so each run starts fresh.
+        tool_error_collector.clear()
+
         # Initialize state — inject memory log context for PM.
         past_context = self.memory_log.get_past_context(company_name)
         init_agent_state = self.propagator.create_initial_state(
@@ -464,6 +518,17 @@ class TradingAgentsGraph:
 
         # Store current state for reflection.
         self.curr_state = final_state
+
+        # Drain accumulated tool errors and log a summary.
+        tool_errors = tool_error_collector.drain()
+        if tool_errors:
+            logger.warning(
+                "Tool errors during run (%d total): %s",
+                len(tool_errors),
+                ", ".join(e["tool"] for e in tool_errors),
+            )
+        final_state.setdefault("tool_errors", tool_errors)
+        tool_error_collector.clear()
 
         # Log state to disk.
         self._log_state(trade_date, final_state)
@@ -520,6 +585,7 @@ class TradingAgentsGraph:
             },
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
+            "tool_errors": final_state.get("tool_errors", []),
         }
 
         # Save to file

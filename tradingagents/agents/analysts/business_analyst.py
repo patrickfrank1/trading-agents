@@ -12,6 +12,13 @@ from tradingagents.agents.utils.agent_utils import (
     get_6k_filing,
     get_customer_concentration,
     get_governance,
+    get_risk_factor_changes,
+    get_legal_proceedings,
+    get_cybersecurity_disclosure,
+    get_properties_capacity,
+    get_proxy_governance,
+    get_activist_filings,
+    get_form_8k_events,
 )
 
 
@@ -31,6 +38,13 @@ def create_business_analyst(llm):
             get_6k_filing,
             get_customer_concentration,
             get_governance,
+            get_risk_factor_changes,
+            get_legal_proceedings,
+            get_cybersecurity_disclosure,
+            get_properties_capacity,
+            get_proxy_governance,
+            get_activist_filings,
+            get_form_8k_events,
         ]
 
         system_message = (
@@ -53,7 +67,14 @@ def create_business_analyst(llm):
             "- `get_peer_comparison`: Financial metrics vs direct competitors.\n"
             "- `get_sector_performance`: Sector/industry benchmark performance.\n"
             "- `get_customer_concentration`: Extracts customer-concentration, remaining-performance-obligations (RPO), and backlog disclosures directly from the latest annual filing. Use this to resolve whether a large RPO/backlog is genuine contracted growth or legacy support, and whether revenue depends on one or a few customers.\n"
-            "- `get_governance`: Ownership concentration (insider/institutional %, top holders). Use this to flag concentrated founder/insider control and governance risk.\n\n"
+            "- `get_governance`: Ownership concentration (insider/institutional %, top holders). Use this to flag concentrated founder/insider control and governance risk.\n"
+            "- `get_risk_factor_changes`: Compares Item 1A Risk Factors year-over-year and reports newly-added/removed risks — a leading indicator that something changed.\n"
+            "- `get_legal_proceedings`: Item 3 material litigation/environmental/regulatory matters with accruals.\n"
+            "- `get_cybersecurity_disclosure`: Item 1C cybersecurity incidents and risk-management process (mandatory since 2023).\n"
+            "- `get_properties_capacity`: Item 2 owned/leased footprint, data-center/plant capacity — the supply-side limit on growth.\n"
+            "- `get_proxy_governance`: Latest DEF 14A proxy — executive comp, related-party transactions, director independence, say-on-pay.\n"
+            "- `get_activist_filings`: Recent 13D/13G activist filings with the Purpose-of-Transaction clause — a catalyst signal.\n"
+            "- `get_form_8k_events`: Recent 8-Ks classified by event type (earnings, exec change, M&A, debt default, guidance).\n\n"
             "After gathering all data, write a comprehensive business analysis report that "
             "answers each of the following questions with specific evidence, numbers, and "
             "quotes from the filings:\n\n"

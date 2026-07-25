@@ -16,74 +16,73 @@ from tradingagents.dataflows.macro_vendors import (
     format_vendor_report,
     get_available_vendors,
 )
+from tradingagents.agents.utils.tool_errors import safe_tool
 
 
 def _search_macro_news(queries, curr_date, look_back_days, limit):
     all_news = []
     seen_titles = set()
 
-    try:
-        for query in queries:
-            search = yf_retry(lambda q=query: yf.Search(
-                q=q,
-                news_count=limit,
-                enable_fuzzy_query=True,
-            ))
+    for query in queries:
+        search = yf_retry(lambda q=query: yf.Search(
+            q=q,
+            news_count=limit,
+            enable_fuzzy_query=True,
+        ))
 
-            if search.news:
-                for article in search.news:
-                    if "content" in article:
-                        data = _extract_article_data(article)
-                        title = data["title"]
-                    else:
-                        title = article.get("title", "")
+        if search.news:
+            for article in search.news:
+                if "content" in article:
+                    data = _extract_article_data(article)
+                    title = data["title"]
+                else:
+                    title = article.get("title", "")
 
-                    if title and title not in seen_titles:
-                        seen_titles.add(title)
-                        all_news.append(article)
+                if title and title not in seen_titles:
+                    seen_titles.add(title)
+                    all_news.append(article)
 
-            if len(all_news) >= limit:
-                break
+        if len(all_news) >= limit:
+            break
 
-        if not all_news:
-            return f"No macro economic news found for {curr_date}"
+    if not all_news:
+        return f"No macro economic news found for {curr_date}"
 
-        curr_dt = datetime.strptime(curr_date, "%Y-%m-%d")
-        start_dt = curr_dt - relativedelta(days=look_back_days)
-        start_date = start_dt.strftime("%Y-%m-%d")
+    curr_dt = datetime.strptime(curr_date, "%Y-%m-%d")
+    start_dt = curr_dt - relativedelta(days=look_back_days)
+    start_date = start_dt.strftime("%Y-%m-%d")
 
-        news_str = ""
-        for article in all_news[:limit]:
-            if "content" in article:
-                data = _extract_article_data(article)
-                if data.get("pub_date"):
-                    pub_naive = data["pub_date"].replace(tzinfo=None) if hasattr(data["pub_date"], "replace") else data["pub_date"]
-                    if pub_naive > curr_dt + relativedelta(days=1):
-                        continue
-                title = data["title"]
-                publisher = data["publisher"]
-                link = data["link"]
-                summary = data["summary"]
-            else:
-                title = article.get("title", "No title")
-                publisher = article.get("publisher", "Unknown")
-                link = article.get("link", "")
-                summary = ""
+    news_str = ""
+    for article in all_news[:limit]:
+        if "content" in article:
+            data = _extract_article_data(article)
+            if data.get("pub_date"):
+                pub_naive = data["pub_date"].replace(tzinfo=None) if hasattr(data["pub_date"], "replace") else data["pub_date"]
+                if pub_naive > curr_dt + relativedelta(days=1):
+                    continue
+            title = data["title"]
+            publisher = data["publisher"]
+            link = data["link"]
+            summary = data["summary"]
+        else:
+            title = article.get("title", "No title")
+            publisher = article.get("publisher", "Unknown")
+            link = article.get("link", "")
+            summary = ""
 
-            news_str += f"### {title} (source: {publisher})\n"
-            if summary:
-                news_str += f"{summary}\n"
-            if link:
-                news_str += f"Link: {link}\n"
-            news_str += "\n"
+        news_str += f"### {title} (source: {publisher})\n"
+        if summary:
+            news_str += f"{summary}\n"
+        if link:
+            news_str += f"Link: {link}\n"
+        news_str += "\n"
 
-        return news_str
+    return news_str
 
-    except Exception as e:
-        return f"Error fetching macro economic news: {str(e)}"
 
 
 @tool
+@safe_tool
 def get_cpi_data(
     curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
     look_back_days: Annotated[int, "Number of days to look back for CPI data"] = 30,
@@ -118,6 +117,7 @@ def get_cpi_data(
 
 
 @tool
+@safe_tool
 def get_fomc_data(
     curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
     look_back_days: Annotated[int, "Number of days to look back for FOMC data"] = 30,
@@ -153,6 +153,7 @@ def get_fomc_data(
 
 
 @tool
+@safe_tool
 def get_nonfarm_payrolls_data(
     curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
     look_back_days: Annotated[int, "Number of days to look back for NFP data"] = 30,
@@ -189,6 +190,7 @@ def get_nonfarm_payrolls_data(
 
 
 @tool
+@safe_tool
 def get_macro_market_data() -> str:
     """
     Retrieve a comprehensive snapshot of broad macro market conditions
@@ -209,14 +211,12 @@ def get_macro_market_data() -> str:
     Returns:
         str: A formatted markdown report with current macro market conditions
     """
-    try:
-        data = fetch_macro_market_data()
-        return format_macro_market_report(data)
-    except Exception as e:
-        return f"Error fetching macro market data: {str(e)}"
+    data = fetch_macro_market_data()
+    return format_macro_market_report(data)
 
 
 @tool
+@safe_tool
 def get_fred_economic_data(
     look_back_months: Annotated[int, "Number of months of history to fetch"] = 12,
 ) -> str:
@@ -232,23 +232,21 @@ def get_fred_economic_data(
     Returns:
         str: A formatted markdown report with the latest values and trends
     """
-    try:
-        import os
-        api_key = os.environ.get("FRED_API_KEY", "")
-        if not api_key:
-            available = get_available_vendors()
-            return (
-                "FRED API key not configured. Set FRED_API_KEY environment variable.\n"
-                "Request a free key at https://fred.stlouisfed.org/docs/api/api_key.html\n"
-                f"\nCurrently available macro vendors: {available}"
-            )
-        data = fetch_vendor_data("fred", api_key=api_key, look_back_months=look_back_months)
-        return format_vendor_report("fred", data)
-    except Exception as e:
-        return f"Error fetching FRED data: {str(e)}"
+    import os
+    api_key = os.environ.get("FRED_API_KEY", "")
+    if not api_key:
+        available = get_available_vendors()
+        return (
+            "FRED API key not configured. Set FRED_API_KEY environment variable.\n"
+            "Request a free key at https://fred.stlouisfed.org/docs/api/api_key.html\n"
+            f"\nCurrently available macro vendors: {available}"
+        )
+    data = fetch_vendor_data("fred", api_key=api_key, look_back_months=look_back_months)
+    return format_vendor_report("fred", data)
 
 
 @tool
+@safe_tool
 def get_oecd_data() -> str:
     """
     Retrieve key macro indicators from the OECD (Organisation for Economic
@@ -261,14 +259,12 @@ def get_oecd_data() -> str:
     Returns:
         str: A formatted markdown report with latest OECD indicators
     """
-    try:
-        data = fetch_vendor_data("oecd")
-        return format_vendor_report("oecd", data)
-    except Exception as e:
-        return f"Error fetching OECD data: {str(e)}"
+    data = fetch_vendor_data("oecd")
+    return format_vendor_report("oecd", data)
 
 
 @tool
+@safe_tool
 def get_world_bank_data(
     country: Annotated[str, "ISO country code (e.g. USA, CHN, GBR, DEU, JPN)"] = "USA",
 ) -> str:
@@ -286,14 +282,12 @@ def get_world_bank_data(
     Returns:
         str: A formatted markdown report with World Bank indicators
     """
-    try:
-        data = fetch_vendor_data("worldbank", country=country)
-        return format_vendor_report("worldbank", data)
-    except Exception as e:
-        return f"Error fetching World Bank data: {str(e)}"
+    data = fetch_vendor_data("worldbank", country=country)
+    return format_vendor_report("worldbank", data)
 
 
 @tool
+@safe_tool
 def get_ecb_data() -> str:
     """
     Retrieve Eurozone macro indicators from the European Central Bank via
@@ -306,8 +300,5 @@ def get_ecb_data() -> str:
     Returns:
         str: A formatted markdown report with ECB / Eurozone indicators
     """
-    try:
-        data = fetch_vendor_data("ecb")
-        return format_vendor_report("ecb", data)
-    except Exception as e:
-        return f"Error fetching ECB data: {str(e)}"
+    data = fetch_vendor_data("ecb")
+    return format_vendor_report("ecb", data)
