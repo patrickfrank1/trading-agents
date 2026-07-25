@@ -1,5 +1,6 @@
 
 
+
 def create_bear_researcher(llm):
     def bear_node(state) -> dict:
         investment_debate_state = state["investment_debate_state"]
@@ -14,38 +15,51 @@ def create_bear_researcher(llm):
         macro_report = state["macro_report"]
         business_report = state.get("business_report", "")
 
-        prompt = f"""You are a Bear Analyst making the case against investing in the stock. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
+        from tradingagents.agents.utils.agent_utils import get_facts_block
+        facts_block = get_facts_block(state)
 
-Key points to focus on:
+        prompt = f"""You are the BEAR Analyst. Your investor mandate is that of a DISTRESSED-CREDIT / VALUE-SAFETY analyst: you scrutinize balance-sheet durability, cash-flow sufficiency, refinancing risk, capital-allocation discipline, and valuation discipline against intrinsic value. You are not a perma-bear — you make the case against the long position because the risks or valuation outweigh the business case.
 
-- Risks and Challenges: Highlight factors like market saturation, financial instability, or macroeconomic threats that could hinder the stock's performance.
-- Competitive Weaknesses: Emphasize vulnerabilities such as weaker market positioning, declining innovation, or threats from competitors.
-- Negative Indicators: Use evidence from financial data, market trends, or recent adverse news to support your position.
-- Macroeconomic Headwinds: Incorporate the macroeconomic environment — tightening Fed policy, rising inflation, or weakening labor markets can pressure equity valuations and corporate earnings.
-- Bull Counterpoints: Critically analyze the bull argument with specific data and sound reasoning, exposing weaknesses or over-optimistic assumptions.
-- Engagement: Present your argument in a conversational style, directly engaging with the bull analyst's points and debating effectively rather than simply listing facts.
+This is a structured ADVERSARIAL DEBATE, not a doom-scroll. Your credibility depends on engaging the bull's actual arguments.
 
-Analyst report weightings — you MUST follow these priorities strictly:
+**Rules of engagement (follow strictly):**
+1. CONCEDE FIRST: Open by explicitly naming 1-3 bull points you concede are correct or genuinely strong. Refusing to concede anything is a failure mode.
+2. NEW EVIDENCE: Then advance your case with at least one NEW piece of evidence or a NEW line of argument not present in your prior turns. Repeating your earlier points louder is a failure.
+3. REFUTE: Critically analyze the bull's remaining strongest points with specific data. Expose over-optimistic assumptions. Do not strawman.
+4. CITE: Every quantitative claim must cite its source, e.g. [Fundamentals: total debt], [Business: churn], [Market: drawdown], [Facts Snapshot: price]. Do not invent figures.
+5. Use the Canonical Facts Snapshot below as the single source of truth for numbers — do not re-derive or contradict them.
+6. BE CONCISE: Keep this turn under ~180 words. Make your points as tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt. One concession, one new cited argument, one crisp rebuttal. Brevity is a feature; the Research Manager reads the full transcript.
 
-- **Business Analyst (35%)** — Primary driver of the BUY/SELL decision. Anchor your argument on business fundamentals: revenue quality, competitive moat, management execution, product strategy, and long-term business value. This is the single most important input.
-- **Fundamentals Analyst (25%)** — Core financial analysis. Deeply engage with financial health, profitability metrics, valuation, and balance sheet strength.
-- **Macro Analyst (10%)** — Macroeconomic context. Consider how Fed policy, inflation, labor markets, and geopolitical factors affect the business and sector.
-- **Market Analyst (10%)** — Technical indicators and price action. Use ONLY for entry/exit timing guidance — not for the directional thesis itself.
-- **News Analyst (10%)** — Recent news flow. Consider material events, catalysts, and sentiment shifts, but do not let news override the fundamental business thesis.
-- **Sentiment Analyst (10%)** — Social media and retail sentiment. Useful as a supplementary signal for timing and contrarian positioning, but carry minimal weight in the investment thesis.
+**Your evidentiary focus (draw the bulk of your case here, but you may use any report):**
+- Balance-sheet risk: leverage, debt maturity profile, refinancing risk, off-balance-sheet commitments, tangible book value (Fundamentals)
+- Cash-flow sufficiency: FCF, capex burden, interest coverage, funding gaps (Fundamentals)
+- Valuation discipline: DCF / EPV / comps vs. current price, margin of safety (Fundamentals)
+- Competitive threats, execution risk, demand cyclicality (Business)
+- Macro / liquidity headwinds that compound the above (Macro) — context, not the core
 
-Resources available:
+**Analyst report weightings (respect these priorities):**
+- Business Analyst (35%) — primary driver. Fundamentals Analyst (25%) — core financials.
+- Macro (10%), Market (10%), News (10%), Sentiment (10%) — context and timing, not the directional thesis.
 
+{facts_block}
+**Resources:**
 Business analyst report: {business_report}
 Company fundamentals report: {fundamentals_report}
 Macroeconomic report: {macro_report}
 Market research report (technical indicators): {market_research_report}
 Latest world affairs news: {news_report}
 Social media sentiment report: {sentiment_report}
-Conversation history of the debate: {history}
-Last bull argument: {current_response}
-Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. Ground your thesis primarily in business value and fundamentals; use technical indicators only for timing.
-"""
+
+**Your own prior turns (do NOT repeat these — introduce new evidence or concede instead):**
+{bear_history}
+
+**Conversation history:**
+{history}
+
+**Last bull argument:**
+{current_response}
+
+Deliver a tight, evidence-led bear case that concedes what it must and refutes what it can with NEW cited evidence."""
 
         response = llm.invoke(prompt)
 
@@ -57,6 +71,7 @@ Use this information to deliver a compelling bear argument, refute the bull's cl
             "bull_history": investment_debate_state.get("bull_history", ""),
             "current_response": argument,
             "count": investment_debate_state["count"] + 1,
+            "referee_notes": investment_debate_state.get("referee_notes", ""),
         }
 
         return {"investment_debate_state": new_investment_debate_state}

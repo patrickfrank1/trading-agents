@@ -1,5 +1,8 @@
 from .utils.agent_utils import create_msg_delete
 from .utils.agent_states import AgentState, InvestDebateState, RiskDebateState
+from .utils.facts_snapshot import create_facts_snapshot
+from .utils.fact_check import create_fact_check
+from .utils.fact_reconciliation import create_fact_reconciliation
 
 from .analysts.business_analyst import create_business_analyst
 from .analysts.fundamentals_analyst import create_fundamentals_analyst
@@ -10,6 +13,7 @@ from .analysts.social_media_analyst import create_social_media_analyst
 
 from .researchers.bear_researcher import create_bear_researcher
 from .researchers.bull_researcher import create_bull_researcher
+from .researchers.debate_referee import create_debate_referee
 
 from .risk_mgmt.aggressive_debator import create_aggressive_debator
 from .risk_mgmt.conservative_debator import create_conservative_debator
@@ -27,6 +31,7 @@ __all__ = [
     "RiskDebateState",
     "create_bear_researcher",
     "create_bull_researcher",
+    "create_debate_referee",
     "create_research_manager",
     "create_business_analyst",
     "create_fundamentals_analyst",
@@ -39,4 +44,7 @@ __all__ = [
     "create_conservative_debator",
     "create_social_media_analyst",
     "create_trader",
+    "create_facts_snapshot",
+    "create_fact_check",
+    "create_fact_reconciliation",
 ]

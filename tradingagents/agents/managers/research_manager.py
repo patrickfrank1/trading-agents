@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from tradingagents.agents.schemas import ResearchPlan, render_research_plan
-from tradingagents.agents.utils.agent_utils import build_instrument_context
+from tradingagents.agents.utils.agent_utils import (
+    build_instrument_context,
+    get_claim_audit_block,
+    get_facts_block,
+    get_reports_digest,
+)
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -18,6 +23,10 @@ def create_research_manager(llm):
         history = state["investment_debate_state"].get("history", "")
 
         investment_debate_state = state["investment_debate_state"]
+
+        facts_block = get_facts_block(state)
+        reports_digest = get_reports_digest(state)
+        claim_audit_block = get_claim_audit_block(state)
 
         prompt = f"""As the Research Manager and debate facilitator, your role is to critically evaluate this round of debate and deliver a clear, actionable investment plan for the trader.
 
@@ -39,7 +48,14 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
 - Macro Analyst (10%), Market Analyst (10%), News Analyst (10%), and Sentiment Analyst (10%) together account for 40%. These provide important context and timing signals but should not override the fundamental business thesis.
 - Technical indicators (Market Analyst) should influence entry/exit timing, not the directional BUY/SELL decision itself.
 
----
+**How to use the inputs below:**
+- The raw Business and Fundamentals reports are the primary evidence. The debate is a *filter* over them, not a substitute — read both. Do not let a rhetorically strong but unsupported debate claim override the source data.
+- The Canonical Facts Snapshot is the single source of truth for numbers.
+- The Claim Audit lists debate claims flagged as unsupported or contradicted; discount them.
+
+{facts_block}
+{reports_digest}
+{claim_audit_block}
 
 **Debate History:**
 {history}"""

@@ -1,5 +1,7 @@
 
 
+
+
 def create_neutral_debator(llm):
     def neutral_node(state) -> dict:
         risk_debate_state = state["risk_debate_state"]
@@ -18,11 +20,23 @@ def create_neutral_debator(llm):
 
         trader_decision = state["trader_investment_plan"]
 
-        prompt = f"""As the Neutral Risk Analyst, your role is to provide a balanced perspective, weighing both the potential benefits and risks of the trader's decision or plan. You prioritize a well-rounded approach, evaluating the upsides and downsides while factoring in broader market trends, potential economic shifts, and diversification strategies.Here is the trader's decision:
+        from tradingagents.agents.utils.agent_utils import get_facts_block
+        facts_block = get_facts_block(state)
 
+        prompt = f"""You are the NEUTRAL Risk Analyst. Your mandate is that of a RISK-PARITY QUANT: you size positions by the balance of expected return against the variance and tail of outcomes. You do not advocate a side — you identify where the aggressive and conservative analysts are each right and each wrong, and you propose the sizing/hedging structure that the evidence actually supports.
+
+This is a structured debate. Rules of engagement:
+1. CONCEDE FIRST: Name the strongest point from EACH of the aggressive and conservative sides.
+2. NEW EVIDENCE: Advance with at least one NEW piece of evidence or a NEW analytical angle vs. your prior turns. Repeating yourself is a failure.
+3. CALL OUT FALSE EQUIVALENCES AND FALSE ANALOGIES: If one side cites an analogy (e.g. "Meta 2022 trough") that does not match the company's actual balance sheet / cash-flow profile, say so explicitly with the comparison.
+4. CITE every quantitative claim, e.g. [Fundamentals: D/E], [Facts Snapshot: price]. Do not invent figures.
+5. Use the Canonical Facts Snapshot as the single source of truth for numbers.
+6. Propose a position structure (size, stops, hedges, scaling) that reflects the actual risk/reward, not a generic "split the difference."
+7. BE CONCISE: Keep this turn under ~500 words. Tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt or prior turns. One concession from each side, one new cited point, one crisp synthesis. The Portfolio Manager reads the full transcript.
+
+{facts_block}
+The trader's decision under review:
 {trader_decision}
-
-Your task is to challenge both the Aggressive and Conservative Analysts, pointing out where each perspective may be overly optimistic or overly cautious. Use insights from the following data sources to support a moderate, sustainable strategy to adjust the trader's decision:
 
 Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
@@ -30,9 +44,16 @@ Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
 Macroeconomic Analysis Report: {macro_report}
 Business and Industry Report: {business_report}
-Here is the current conversation history: {history} Here is the last response from the aggressive analyst: {current_aggressive_response} Here is the last response from the conservative analyst: {current_conservative_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
-Engage actively by analyzing both sides critically, addressing weaknesses in the aggressive and conservative arguments to advocate for a more balanced approach. Challenge each of their points to illustrate why a moderate risk strategy might offer the best of both worlds, providing growth potential while safeguarding against extreme volatility. Focus on debating rather than simply presenting data, aiming to show that a balanced view can lead to the most reliable outcomes. Output conversationally as if you are speaking without any special formatting."""
+**Your own prior turns (do NOT repeat these):**
+{neutral_history}
+
+Conversation history: {history}
+Last aggressive argument: {current_aggressive_response}
+Last conservative argument: {current_conservative_response}
+(If no other viewpoints yet, open with your own data-backed risk/reward framing.)
+
+Synthesize the two sides critically and propose the evidence-based position structure. Output conversationally, no special formatting."""
 
         response = llm.invoke(prompt)
 

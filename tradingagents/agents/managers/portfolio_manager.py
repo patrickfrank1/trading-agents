@@ -13,7 +13,10 @@ from __future__ import annotations
 from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
+    get_claim_audit_block,
+    get_facts_block,
     get_language_instruction,
+    get_reports_digest,
 )
 from tradingagents.agents.utils.structured import (
     bind_structured,
@@ -39,6 +42,10 @@ def create_portfolio_manager(llm):
             else ""
         )
 
+        facts_block = get_facts_block(state)
+        reports_digest = get_reports_digest(state)
+        claim_audit_block = get_claim_audit_block(state)
+
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
 {instrument_context}
@@ -60,6 +67,11 @@ def create_portfolio_manager(llm):
 - News Analyst — Recent news flow, material events, and catalysts, but do not let news override fundamentals.
 - Sentiment Analyst — Social media and retail sentiment, supplementary signal only.
 
+**How to use the inputs below:**
+- The raw Business and Fundamentals reports are primary evidence alongside the risk debate. The debate is a *filter*, not a substitute.
+- The Canonical Facts Snapshot is the single source of truth for numbers; do not re-derive them.
+- The Claim Audit lists debate claims flagged as unsupported/contradicted by the source reports — discount them when assigning impact.
+
 **Step 1 — Arguments Table:**
 First, compile a markdown table of the key BUY and SELL arguments extracted from the risk debate and supporting context below. Each row must include: the argument, its source analyst type, an impact rating (High / Medium / Low), and whether it supports BUY or SELL. Arguments sourced from Business Analyst or Fundamentals Analyst should generally carry High impact; arguments from Macro, Market, News, or Sentiment Analysts should generally carry Medium or Low impact. This table anchors your final decision in transparent, weighted evidence.
 
@@ -72,7 +84,9 @@ After the table, deliver your final rating and supporting details.
 **Context:**
 - Research Manager's investment plan: **{research_plan}**
 - Trader's transaction proposal: **{trader_plan}**
-{lessons_line}
+{lessons_line}{facts_block}
+{reports_digest}
+{claim_audit_block}
 **Risk Analysts Debate History:**
 {history}
 

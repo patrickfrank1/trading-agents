@@ -1,11 +1,15 @@
 # TradingAgents/graph/setup.py
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from tradingagents.agents import *
 from tradingagents.agents.utils.agent_states import AgentState
+from tradingagents.agents.utils.facts_snapshot import create_facts_snapshot
+from tradingagents.agents.utils.fact_check import create_fact_check
+from tradingagents.agents.utils.fact_reconciliation import create_fact_reconciliation
+from tradingagents.agents.researchers.debate_referee import create_debate_referee
 
 from .conditional_logic import ConditionalLogic
 
@@ -19,12 +23,29 @@ class GraphSetup:
         deep_thinking_llm: Any,
         tool_nodes: Dict[str, ToolNode],
         conditional_logic: ConditionalLogic,
+        debate_llms: Optional[Dict[str, Any]] = None,
     ):
-        """Initialize with required components."""
+        """Initialize with required components.
+
+        Args:
+            quick_thinking_llm: LLM for analysts, debaters (default), trader.
+            deep_thinking_llm: LLM for Research Manager and Portfolio Manager.
+            tool_nodes: Per-category ToolNode map.
+            conditional_logic: Flow controller (carries the enable_* flags).
+            debate_llms: Optional per-debater LLMs keyed by
+                bull/bear/aggressive/conservative/neutral. When a key is absent
+                the shared quick_thinking_llm is used. Diversifying the debaters
+                (different temperatures / personas) stops the debate from being
+                one model arguing with itself.
+        """
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
         self.conditional_logic = conditional_logic
+        self.debate_llms = debate_llms or {}
+
+    def _debater_llm(self, key: str) -> Any:
+        return self.debate_llms.get(key, self.quick_thinking_llm)
 
     def setup_graph(
         self, selected_analysts=["market", "social", "news", "fundamentals"]
@@ -90,16 +111,35 @@ class GraphSetup:
             delete_nodes["business"] = create_msg_delete()
             tool_nodes["business"] = self.tool_nodes["business"]
 
-        # Create researcher and manager nodes
-        bull_researcher_node = create_bull_researcher(self.quick_thinking_llm)
-        bear_researcher_node = create_bear_researcher(self.quick_thinking_llm)
+        # Create researcher and manager nodes.
+        # Each debater may use a dedicated (e.g. different-temperature) LLM so
+        # the two sides are not literally the same model arguing with itself.
+        bull_researcher_node = create_bull_researcher(self._debater_llm("bull"))
+        bear_researcher_node = create_bear_researcher(self._debater_llm("bear"))
         research_manager_node = create_research_manager(self.deep_thinking_llm)
         trader_node = create_trader(self.quick_thinking_llm)
 
+        # Debate-quality nodes. Each is a no-op when its feature flag is off,
+        # so the graph topology stays fixed while behaviour is config-driven.
+        facts_snapshot_node = create_facts_snapshot(
+            self.quick_thinking_llm,
+            enabled=self.conditional_logic.enable_facts_snapshot,
+        )
+        debate_referee_node = create_debate_referee(
+            self.quick_thinking_llm,
+            enabled=self.conditional_logic.enable_debate_referee,
+        )
+        fact_check_node = create_fact_check(
+            self.quick_thinking_llm,
+            enabled=self.conditional_logic.enable_fact_check,
+        )
+        # Reconciliation fetches raw data and reasons over it; use the deep LLM.
+        fact_reconciliation_node = create_fact_reconciliation(self.deep_thinking_llm)
+
         # Create risk analysis nodes
-        aggressive_analyst = create_aggressive_debator(self.quick_thinking_llm)
-        neutral_analyst = create_neutral_debator(self.quick_thinking_llm)
-        conservative_analyst = create_conservative_debator(self.quick_thinking_llm)
+        aggressive_analyst = create_aggressive_debator(self._debater_llm("aggressive"))
+        neutral_analyst = create_neutral_debator(self._debater_llm("neutral"))
+        conservative_analyst = create_conservative_debator(self._debater_llm("conservative"))
         portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
 
         # Create workflow
@@ -114,8 +154,12 @@ class GraphSetup:
             workflow.add_node(f"tools_{analyst_type}", tool_nodes[analyst_type])
 
         # Add other nodes
+        workflow.add_node("Facts Snapshot", facts_snapshot_node)
         workflow.add_node("Bull Researcher", bull_researcher_node)
         workflow.add_node("Bear Researcher", bear_researcher_node)
+        workflow.add_node("Debate Referee", debate_referee_node)
+        workflow.add_node("Fact Check", fact_check_node)
+        workflow.add_node("Fact Reconciliation", fact_reconciliation_node)
         workflow.add_node("Research Manager", research_manager_node)
         workflow.add_node("Trader", trader_node)
         workflow.add_node("Aggressive Analyst", aggressive_analyst)
@@ -142,30 +186,45 @@ class GraphSetup:
             )
             workflow.add_edge(current_tools, current_analyst)
 
-            # Connect to next analyst or to Bull Researcher if this is the last analyst
+            # Connect to next analyst, or to Facts Snapshot if this is the last analyst.
+            # Facts Snapshot compiles the canonical numbers block once, before the
+            # debate, so every downstream agent argues from the same figures.
             if i < len(selected_analysts) - 1:
                 next_analyst = f"{selected_analysts[i+1].capitalize()} Analyst"
                 workflow.add_edge(current_clear, next_analyst)
             else:
-                workflow.add_edge(current_clear, "Bull Researcher")
+                workflow.add_edge(current_clear, "Facts Snapshot")
 
-        # Add remaining edges
+        # Debate loop: Bull -> Bear -> Debate Referee -> (Bull | Fact Check).
+        # The referee scores each completed round for convergence and can end
+        # the debate early instead of running fixed, restating rounds.
+        workflow.add_edge("Facts Snapshot", "Bull Researcher")
+        workflow.add_edge("Bull Researcher", "Bear Researcher")
+        workflow.add_edge("Bear Researcher", "Debate Referee")
         workflow.add_conditional_edges(
-            "Bull Researcher",
-            self.conditional_logic.should_continue_debate,
-            {
-                "Bear Researcher": "Bear Researcher",
-                "Research Manager": "Research Manager",
-            },
-        )
-        workflow.add_conditional_edges(
-            "Bear Researcher",
+            "Debate Referee",
             self.conditional_logic.should_continue_debate,
             {
                 "Bull Researcher": "Bull Researcher",
+                "Fact Check": "Fact Check",
                 "Research Manager": "Research Manager",
             },
         )
+
+        # Post-debate fact-check -> optional reconciliation -> Research Manager.
+        # The fact-check audits debate claims against the source reports; when it
+        # flags a contradiction resolvable by re-querying raw data, reconciliation
+        # resolves it before any decision is made.
+        workflow.add_conditional_edges(
+            "Fact Check",
+            self.conditional_logic.should_continue_after_fact_check,
+            {
+                "Fact Reconciliation": "Fact Reconciliation",
+                "Research Manager": "Research Manager",
+            },
+        )
+        workflow.add_edge("Fact Reconciliation", "Research Manager")
+
         workflow.add_edge("Research Manager", "Trader")
         workflow.add_edge("Trader", "Aggressive Analyst")
         workflow.add_conditional_edges(

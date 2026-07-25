@@ -1,5 +1,6 @@
 
 
+
 def create_conservative_debator(llm):
     def conservative_node(state) -> dict:
         risk_debate_state = state["risk_debate_state"]
@@ -18,11 +19,23 @@ def create_conservative_debator(llm):
 
         trader_decision = state["trader_investment_plan"]
 
-        prompt = f"""As the Conservative Risk Analyst, your primary objective is to protect assets, minimize volatility, and ensure steady, reliable growth. You prioritize stability, security, and risk mitigation, carefully assessing potential losses, economic downturns, and market volatility. When evaluating the trader's decision or plan, critically examine high-risk elements, pointing out where the decision may expose the firm to undue risk and where more cautious alternatives could secure long-term gains. Here is the trader's decision:
+        from tradingagents.agents.utils.agent_utils import get_facts_block
+        facts_block = get_facts_block(state)
 
+        prompt = f"""You are the CONSERVATIVE Risk Analyst. Your mandate is that of a CAPITAL-PRESERVATION RISK OFFICER: your first duty is to avoid permanent loss of capital. You scrutinize downside scenarios, tail risk, leverage, liquidity, and concentration. You are NOT a perma-sell — you must acknowledge upside when it is real and well-supported, then explain why the risk-adjusted path still favors protection.
+
+This is a structured debate. Rules of engagement:
+1. CONCEDE FIRST: Name 1-2 upside points the aggressive/neutral analysts raised that are legitimate. Dismissing all upside is a failure.
+2. NEW EVIDENCE: Advance with at least one NEW piece of evidence or a NEW risk vector vs. your prior turns. Repeating yourself is a failure.
+3. REFUTE directly: Address each aggressive/neutral point with specific data. Expose where their optimism assumes best-case as base case.
+4. CITE every quantitative claim, e.g. [Fundamentals: total debt], [Facts Snapshot: price]. Do not invent figures.
+5. Use the Canonical Facts Snapshot as the single source of truth for numbers.
+6. Propose CONCRETE, specific risk controls (stop levels, sizing caps, hedges) tied to the cited numbers — not generic "be cautious."
+7. BE CONCISE: Keep this turn under ~500 words. Tight bullets or short sentences — no long essays, no throat-clearing, no restating the prompt or prior turns. One concession, one new cited point, one crisp rebuttal. The Portfolio Manager reads the full transcript.
+
+{facts_block}
+The trader's decision under review:
 {trader_decision}
-
-Your task is to actively counter the arguments of the Aggressive and Neutral Analysts, highlighting where their views may overlook potential threats or fail to prioritize sustainability. Respond directly to their points, drawing from the following data sources to build a convincing case for a low-risk approach adjustment to the trader's decision:
 
 Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
@@ -30,9 +43,16 @@ Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
 Macroeconomic Analysis Report: {macro_report}
 Business and Industry Report: {business_report}
-Here is the current conversation history: {history} Here is the last response from the aggressive analyst: {current_aggressive_response} Here is the last response from the neutral analyst: {current_neutral_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
-Engage by questioning their optimism and emphasizing the potential downsides they may have overlooked. Address each of their counterpoints to showcase why a conservative stance is ultimately the safest path for the firm's assets. Focus on debating and critiquing their arguments to demonstrate the strength of a low-risk strategy over their approaches. Output conversationally as if you are speaking without any special formatting."""
+**Your own prior turns (do NOT repeat these):**
+{conservative_history}
+
+Conversation history: {history}
+Last aggressive argument: {current_aggressive_response}
+Last neutral argument: {current_neutral_response}
+(If no other viewpoints yet, open with your own data-backed risk assessment.)
+
+Make the capital-preservation case — concede real upside, then show why the downside path demands protection. Output conversationally, no special formatting."""
 
         response = llm.invoke(prompt)
 

@@ -75,6 +75,59 @@ def build_instrument_context(ticker: str) -> str:
         "preserving any exchange suffix (e.g. `.TO`, `.L`, `.HK`, `.T`)."
     )
 
+
+def get_facts_block(state: dict) -> str:
+    """Return the canonical facts snapshot for prompt injection.
+
+    Downstream agents (debaters, RM, PM, trader) all read this so they argue
+    from one reconciled set of numbers instead of each re-fetching slightly
+    different ones. Returns an empty string when no snapshot has been computed
+    yet (e.g. when the feature is disabled), so prompts stay well-formed.
+    """
+    snapshot = state.get("facts_snapshot", "") if state else ""
+    if not snapshot:
+        return ""
+    return f"\n**Canonical Facts Snapshot (single source of truth — cite these numbers, do not re-derive them):**\n{snapshot}\n"
+
+
+def get_claim_audit_block(state: dict) -> str:
+    """Return the post-debate claim audit for decision-agent prompts.
+
+    The fact-check node flags debate claims that are unsupported or
+    contradicted by the source analyst reports. Injecting it here lets the
+    Research Manager and Portfolio Manager discount rhetorical hot air.
+    """
+    audit = state.get("claim_audit", "") if state else ""
+    if not audit:
+        return ""
+    return (
+        "\n**Claim Audit (debate claims flagged as unsupported or contradicted by "
+        "the source reports — discount these when deciding):**\n"
+        f"{audit}\n"
+    )
+
+
+def get_reports_digest(state: dict) -> str:
+    """Return the Business + Fundamentals analyst reports for decision agents.
+
+    The Research Manager and Portfolio Manager used to see only the debate
+    history (a lossy rhetorical compression of these same reports). Giving
+    them the raw source reports turns the debate into a *filter* over the
+    evidence rather than the sole input, which is what stops the final
+    decision from being forced to re-derive the analysts' own conclusion.
+    """
+    if not state:
+        return ""
+    business = state.get("business_report", "")
+    fundamentals = state.get("fundamentals_report", "")
+    parts = []
+    if business:
+        parts.append(f"**Business Analyst report:**\n{business}")
+    if fundamentals:
+        parts.append(f"**Fundamentals Analyst report:**\n{fundamentals}")
+    return ("\n\n".join(parts) + "\n") if parts else ""
+
+
 def create_msg_delete():
     def delete_messages(state):
         """Clear messages and add placeholder for Anthropic compatibility"""

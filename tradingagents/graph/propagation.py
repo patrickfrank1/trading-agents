@@ -32,6 +32,7 @@ class Propagator:
                     "current_response": "",
                     "judge_decision": "",
                     "count": 0,
+                    "referee_notes": "",
                 }
             ),
             "risk_debate_state": RiskDebateState(
@@ -54,6 +55,9 @@ class Propagator:
             "news_report": "",
             "macro_report": "",
             "business_report": "",
+            "facts_snapshot": "",
+            "claim_audit": "",
+            "debate_converged": False,
         }
 
     def get_graph_args(self, callbacks: Optional[List] = None) -> Dict[str, Any]:

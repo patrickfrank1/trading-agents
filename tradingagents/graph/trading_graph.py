@@ -134,15 +134,29 @@ class TradingAgentsGraph:
         self.conditional_logic = ConditionalLogic(
             max_debate_rounds=self.config["max_debate_rounds"],
             max_risk_discuss_rounds=self.config["max_risk_discuss_rounds"],
+            enable_facts_snapshot=self.config.get("enable_facts_snapshot", True),
+            enable_debate_referee=self.config.get("enable_debate_referee", True),
+            enable_fact_check=self.config.get("enable_fact_check", True),
+            enable_fact_reconciliation=self.config.get("enable_fact_reconciliation", True),
         )
+
+        # Per-debater LLMs with distinct temperatures so the two sides of each
+        # debate are not literally the same model talking to itself. Falls back
+        # to the shared quick LLM when the provider rejects temperature or when
+        # no per-debater temperatures are configured.
+        debate_llms = self._build_debate_llms(llm_kwargs)
+
         self.graph_setup = GraphSetup(
             self.quick_thinking_llm,
             self.deep_thinking_llm,
             self.tool_nodes,
             self.conditional_logic,
+            debate_llms=debate_llms,
         )
 
-        self.propagator = Propagator()
+        self.propagator = Propagator(
+            max_recur_limit=self.config.get("max_recur_limit", 100)
+        )
         self.reflector = Reflector(self.quick_thinking_llm)
         self.signal_processor = SignalProcessor(self.quick_thinking_llm)
 
@@ -177,6 +191,46 @@ class TradingAgentsGraph:
                 kwargs["effort"] = effort
 
         return kwargs
+
+    def _build_debate_llms(self, base_llm_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Create per-debater LLM clients with distinct temperatures.
+
+        Diversifying the debaters by temperature (and by the distinct persona
+        mandates baked into their prompts) stops each debate from being one
+        model arguing with itself in different masks. Returns an empty dict
+        when no temperatures are configured, in which case GraphSetup falls
+        back to the shared quick-think LLM for every debater.
+
+        Each client is created defensively: if a provider rejects the
+        ``temperature`` kwarg, that debater silently falls back to the shared
+        quick-think LLM so the pipeline never blocks.
+        """
+        temperatures = self.config.get("debate_temperatures") or {}
+        if not temperatures:
+            return {}
+
+        provider = self.config.get("llm_provider", "")
+        model = self.config["quick_think_llm"]
+        base_url = self.config.get("backend_url")
+        debate_llms: Dict[str, Any] = {}
+        for key in ("bull", "bear", "aggressive", "conservative", "neutral"):
+            temp = temperatures.get(key)
+            if temp is None:
+                continue
+            kwargs = dict(base_llm_kwargs)
+            kwargs["temperature"] = temp
+            try:
+                client = create_llm_client(
+                    provider=provider, model=model, base_url=base_url, **kwargs
+                )
+                debate_llms[key] = client.get_llm()
+            except Exception as exc:
+                logger.warning(
+                    "Could not create %s debater LLM with temperature=%s (%s); "
+                    "falling back to shared quick-think LLM",
+                    key, temp, exc,
+                )
+        return debate_llms
 
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         """Create tool nodes for different data sources using abstract methods."""
@@ -421,6 +475,8 @@ class TradingAgentsGraph:
             "fundamentals_report": final_state["fundamentals_report"],
             "macro_report": final_state["macro_report"],
             "business_report": final_state["business_report"],
+            "facts_snapshot": final_state.get("facts_snapshot", ""),
+            "claim_audit": final_state.get("claim_audit", ""),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],
@@ -431,6 +487,9 @@ class TradingAgentsGraph:
                 "judge_decision": final_state["investment_debate_state"][
                     "judge_decision"
                 ],
+                "referee_notes": final_state["investment_debate_state"].get(
+                    "referee_notes", ""
+                ),
             },
             "trader_investment_decision": final_state["trader_investment_plan"],
             "risk_debate_state": {

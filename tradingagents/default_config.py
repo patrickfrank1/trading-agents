@@ -34,7 +34,40 @@ DEFAULT_CONFIG = {
     # Debate and discussion settings
     "max_debate_rounds": 2,
     "max_risk_discuss_rounds": 2,
-    "max_recur_limit": 100,
+    # The graph now also runs a Facts Snapshot node, a per-round Debate Referee,
+    # a post-debate Fact Check, and an optional Fact Reconciliation, so give a
+    # little more headroom than the original pipeline needed.
+    "max_recur_limit": 200,
+    # Adversarial-debate quality controls. These were added to stop the
+    # bull/bear and risk debates from devolving into rhetorical restatement:
+    #   - enable_facts_snapshot: compute ONE canonical facts block (price,
+    #     multiples, debt, FCF, RPO, ...) once after the analysts finish and
+    #     inject it into every downstream agent so they argue from the same
+    #     numbers instead of each re-fetching slightly different ones.
+    #   - enable_debate_referee: a mid-debate referee scores each round for
+    #     convergence and can stop the debate early once both sides are only
+    #     restating themselves.
+    #   - enable_fact_check: after the debate, audit every quantitative /
+    #     load-bearing claim against the source analyst reports and flag the
+    #     unsupported ones before the Research Manager decides.
+    #   - enable_fact_reconciliation: when the fact-check surfaces a material
+    #     contradiction that can be resolved by re-querying raw fundamentals
+    #     tools, do so and append the reconciled fact before the decision.
+    #   - debate_temperatures: per-debater LLM temperatures so the two sides
+    #     are not literally the same model talking to itself. Keys: bull,
+    #     bear, aggressive, conservative, neutral. Set to None to reuse the
+    #     shared quick-think LLM for all debaters.
+    "enable_facts_snapshot": True,
+    "enable_debate_referee": True,
+    "enable_fact_check": True,
+    "enable_fact_reconciliation": True,
+    "debate_temperatures": {
+        "bull": 0.7,
+        "bear": 0.3,
+        "aggressive": 0.8,
+        "conservative": 0.2,
+        "neutral": 0.5,
+    },
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
