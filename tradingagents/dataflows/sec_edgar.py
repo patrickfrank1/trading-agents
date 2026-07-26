@@ -38,6 +38,19 @@ _PLATFORMS = [
 ]
 
 
+class SECFilingUnavailableError(Exception):
+    """Raised when a SEC EDGAR resource cannot be retrieved (e.g. HTTP 404).
+
+    A 404 on a filing document is permanent for that URL, so retries are
+    pointless. Rather than propagating the low-level ``HTTPError`` (whose
+    ``str`` is the opaque ``"HTTP Error 404: "``), this exception carries a
+    descriptive message that the calling ``get_*`` tools surface to the LLM.
+    Subclasses ``Exception`` (not ``URLError``) so it is caught by the generic
+    ``except Exception`` handlers in the public tool wrappers rather than the
+    ``except URLError`` "Network error" branches.
+    """
+
+
 def _make_user_agent() -> str:
     suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
     name = random.choice(["TradingAgents", "FinAnalysis", "MarketData", "StockScreener", "EquityResearch"])
@@ -59,6 +72,11 @@ def _sec_request(url: str, max_retries: int = 3) -> bytes:
                 logger.warning("SEC rate limit hit on %s, waiting %ds (attempt %d/%d)", url, wait, attempt + 1, max_retries)
                 time.sleep(wait)
                 continue
+            if e.code == 404:
+                logger.warning("SEC resource not found (404): %s", url)
+                raise SECFilingUnavailableError(
+                    "SEC data could not be retrieved (resource not found on EDGAR)."
+                ) from e
             raise
         except urllib.error.URLError as e:
             if attempt < max_retries - 1:
