@@ -8,6 +8,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_stock_data,
     get_option_positioning,
     get_short_interest,
+    get_relative_momentum_vs_sector,
     web_search,
     WEB_SEARCH_INSTRUCTION,
 )
@@ -26,6 +27,7 @@ def create_market_analyst(llm, enable_web_search=True):
             get_option_greeks,
             get_option_positioning,
             get_short_interest,
+            get_relative_momentum_vs_sector,
         ]
         if enable_web_search:
             tools.append(web_search)
@@ -66,7 +68,10 @@ Options Positioning & Short Interest:
 - get_option_positioning: Total open interest, put/call OI ratio, average implied volatility, and the strikes with the largest open interest for the nearest expirations. Usage: Read positioning around key price levels (support/resistance and max-pain proxies) and gauge whether the tape is positioned for a bounce or another leg down.
 - get_short_interest: Short % of float, days to cover (short ratio), and shares short. Usage: Assess positioning / squeeze risk, especially around sharp drawdowns.
 
-- Select indicators that provide diverse and complementary information. Avoid redundancy (e.g., do not select both rsi and stochrsi). Also briefly explain why they are suitable for the given market context. When you tool call, please use the exact name of the indicators provided above as they are defined parameters, otherwise your call will fail. Please make sure to call get_stock_data first to retrieve the CSV that is needed to generate indicators. Then use get_indicators with the specific indicator names. You may also call get_option_greeks to obtain delta and gamma for the options chain, get_option_positioning to read open-interest positioning around key levels, and get_short_interest to gauge short positioning. Write a very detailed and nuanced report of the trends you observe. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."""
+Sector-Relative Momentum:
+- get_relative_momentum_vs_sector: Stock total return vs its sector ETF over 1/3/6/12-month windows, the 52-week range position, and the 50/200-day trend. Usage: Determine whether the stock is leading or lagging its sector and whether momentum is idiosyncratic or sector-wide. Tips: this is a timing/positioning signal — use it to contextualize the trend, not as the directional thesis.
+
+- Select indicators that provide diverse and complementary information. Avoid redundancy (e.g., do not select both rsi and stochrsi). Also briefly explain why they are suitable for the given market context. When you tool call, please use the exact name of the indicators provided above as they are defined parameters, otherwise your call will fail. Please make sure to call get_stock_data first to retrieve the CSV that is needed to generate indicators. Then use get_indicators with the specific indicator names. You may also call get_option_greeks to obtain delta and gamma for the options chain, get_option_positioning to read open-interest positioning around key levels, get_short_interest to gauge short positioning, and get_relative_momentum_vs_sector to compare the stock's momentum against its sector. Write a very detailed and nuanced report of the trends you observe. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."""
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + (WEB_SEARCH_INSTRUCTION if enable_web_search else "")
             + get_language_instruction()

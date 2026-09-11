@@ -40,6 +40,7 @@ from tradingagents.agents.utils.macro_data_tools import (
     get_oecd_data,
     get_world_bank_data,
     get_ecb_data,
+    get_fx_rates,
 )
 from tradingagents.agents.utils.business_data_tools import (
     get_company_profile,
@@ -61,6 +62,12 @@ from tradingagents.agents.utils.equity_intel_tools import (
     get_earnings_calendar,
     get_capital_allocation_history,
     get_governance,
+    get_relative_momentum_vs_sector,
+    get_dilution_profile,
+    get_regime_analog,
+)
+from tradingagents.agents.utils.transcript_tools import (
+    get_earnings_call_transcripts,
 )
 from tradingagents.agents.utils.filing_signals_tools import (
     get_debt_maturity_schedule,

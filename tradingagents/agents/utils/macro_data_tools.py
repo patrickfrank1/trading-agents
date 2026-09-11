@@ -302,3 +302,96 @@ def get_ecb_data() -> str:
     """
     data = fetch_vendor_data("ecb")
     return format_vendor_report("ecb", data)
+
+
+# ---------------------------------------------------------------------------
+# FX rates (no-login, via yfinance FX pairs)
+# ---------------------------------------------------------------------------
+
+#: Standard USD pairs covered when no explicit list is given.
+DEFAULT_FX_PAIRS = "EURUSD,USDJPY,GBPUSD,USDCNY,USDCAD,USDMXN,USDCHF,USDKRW"
+
+#: Trading-day lookbacks approximating 1 / 3 / 12 months.
+_FX_WINDOWS = {"1M": 21, "3M": 63, "12M": 252}
+
+
+def _fx_change(closes, lookback: int):
+    if closes is None or len(closes) < lookback + 1:
+        return None
+    base = float(closes.iloc[-(lookback + 1)])
+    if base == 0:
+        return None
+    return float(closes.iloc[-1]) / base - 1.0
+
+
+@tool
+@safe_tool
+def get_fx_rates(
+    pairs: Annotated[
+        str,
+        "comma-separated FX pairs as <BASE><QUOTE> (e.g. 'EURUSD,USDJPY'); "
+        "defaults to the major USD pairs",
+    ] = DEFAULT_FX_PAIRS,
+) -> str:
+    """
+    Retrieve current FX rates and 1/3/12-month percentage changes for
+    major currency pairs. No API key required.
+
+    Use this to ground currency analysis: dollar strength/weakness,
+    EUR/JPY/CNY moves relevant to exporters, importers, and companies
+    with foreign revenue. Pair this with the geographic segment data
+    (Fundamentals analyst) to assess translation and input-cost
+    sensitivity for a specific company.
+
+    Args:
+        pairs: Comma-separated currency pairs (e.g. "EURUSD,USDJPY").
+            Each pair must be a 6-letter code like EURUSD; XAUUSD and
+            other Yahoo "=-X" symbols also work.
+
+    Returns:
+        str: A formatted markdown table of rates and changes
+    """
+    raw = [p.strip().upper() for p in (pairs or "").split(",") if p.strip()]
+    pairs_list = raw or [p.strip() for p in DEFAULT_FX_PAIRS.split(",")]
+    pairs_list = pairs_list[:10]
+
+    lines = [
+        "# FX Rates & Trends",
+        f"Retrieved: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+        "| Pair | Spot | 1M | 3M | 12M |",
+        "|---|---|---|---|---|",
+    ]
+    any_data = False
+    for pair in pairs_list:
+        symbol = pair if pair.endswith("=X") else f"{pair}=X"
+        try:
+            closes = yf_retry(
+                lambda s=symbol: yf.Ticker(s).history(period="13mo")
+            )["Close"]
+        except Exception:
+            closes = None
+        if closes is None or len(closes) < 30:
+            lines.append(f"| {pair} | N/A | N/A | N/A | N/A |")
+            continue
+        any_data = True
+        spot = float(closes.iloc[-1])
+        cells = [f"{spot:.4f}"]
+        for lookback in _FX_WINDOWS.values():
+            chg = _fx_change(closes, lookback)
+            cells.append("N/A" if chg is None else f"{chg * 100:+.1f}%")
+        lines.append(f"| {pair} | " + " | ".join(cells) + " |")
+
+    if not any_data:
+        lines.append(
+            "\nNo FX data could be retrieved for the requested pairs "
+            f"({', '.join(pairs_list)})."
+        )
+    else:
+        lines.append(
+            "\nInterpretation: for USD-quoted pairs like EURUSD, a positive "
+            "change means the foreign currency strengthened against the "
+            "dollar (a dollar tailwind for US exporters, headwind for US-"
+            "revenue/foreign-cost importers). For USDCNY-style pairs a rise "
+            "means the dollar strengthened."
+        )
+    return "\n".join(lines)

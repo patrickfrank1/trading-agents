@@ -97,6 +97,11 @@ from tradingagents.agents.utils.agent_utils import (
     get_form_8k_events,
     get_insider_form4_activity,
     get_prospectus_disclosure,
+    get_relative_momentum_vs_sector,
+    get_dilution_profile,
+    get_regime_analog,
+    get_fx_rates,
+    get_earnings_call_transcripts,
     web_search,
 )
 
@@ -278,6 +283,7 @@ class TradingAgentsGraph:
                 get_option_greeks,
                 get_option_positioning,
                 get_short_interest,
+                get_relative_momentum_vs_sector,
             ],
             "social": [
                 # News tools for social media analysis
@@ -329,6 +335,9 @@ class TradingAgentsGraph:
                 get_institutional_13f_filings,
                 get_insider_form4_activity,
                 get_prospectus_disclosure,
+                get_dilution_profile,
+                get_regime_analog,
+                get_fx_rates,
             ],
             "macro": [
                 # Macroeconomic indicators
@@ -342,6 +351,8 @@ class TradingAgentsGraph:
                 get_oecd_data,
                 get_world_bank_data,
                 get_ecb_data,
+                # FX rates (no-login, yfinance pairs)
+                get_fx_rates,
             ],
             "business": [
                 # Business model and competitive analysis
@@ -363,6 +374,8 @@ class TradingAgentsGraph:
                 get_proxy_governance,
                 get_activist_filings,
                 get_form_8k_events,
+                # Earnings-call transcripts (scraped, no login)
+                get_earnings_call_transcripts,
             ],
         }
 

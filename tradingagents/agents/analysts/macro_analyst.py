@@ -15,6 +15,7 @@ from tradingagents.agents.utils.macro_data_tools import (
     get_oecd_data,
     get_world_bank_data,
     get_ecb_data,
+    get_fx_rates,
 )
 from tradingagents.dataflows.macro_vendors import (
     fetch_vendor_data,
@@ -48,6 +49,7 @@ def create_macro_analyst(llm, enable_web_search=True):
             get_oecd_data,
             get_world_bank_data,
             get_ecb_data,
+            get_fx_rates,
         ]
         if enable_web_search:
             tools.append(web_search)
@@ -62,7 +64,8 @@ def create_macro_analyst(llm, enable_web_search=True):
             "- get_fred_economic_data(look_back_months): Retrieve official US economic indicators from the Federal Reserve Economic Data (FRED) database. Requires FRED_API_KEY. Provides actual CPI, PCE, Real GDP, unemployment rate, nonfarm payrolls, Fed funds rate, Treasury yields, yield curve spread, VIX, housing starts, median home prices, manufacturing employment, consumer sentiment, and industrial production.\n"
             "- get_oecd_data(): Retrieve key macro indicators from the OECD for US, Eurozone, Japan, UK, China, and Germany. No API key required. Covers GDP growth, unemployment, inflation, interest rates, industrial production, and retail trade.\n"
             "- get_world_bank_data(country): Retrieve macro indicators from the World Bank for a given country (default USA). No API key required. Covers GDP growth, inflation, unemployment, real interest rate, trade, FDI, government debt, and exchange rate.\n"
-            "- get_ecb_data(): Retrieve Eurozone macro indicators from the European Central Bank. No API key required. Covers ECB policy rates, HICP inflation, unemployment, industrial production, and retail trade.\n\n"
+            "- get_ecb_data(): Retrieve Eurozone macro indicators from the European Central Bank. No API key required. Covers ECB policy rates, HICP inflation, unemployment, industrial production, and retail trade.\n"
+            "- get_fx_rates(pairs): Retrieve current FX rates and 1/3/12-month trends for major currency pairs (defaults to EUR, JPY, GBP, CNY, CAD, MXN, CHF, KRW vs USD). No API key required. Use this to characterize dollar strength/weakness and currency moves relevant to trade, capital flows, and multinational earnings — the Fundamentals analyst will combine your FX context with the company's geographic revenue mix.\n\n"
             "In your report, please address:\n"
             "1. **Current Inflation Environment**: Analyze CPI trends — is inflation accelerating, decelerating, or stable? What does this mean for purchasing power and consumer spending?\n"
             "2. **Monetary Policy Stance**: Summarize the latest FOMC decisions and forward guidance. Is the Fed hawkish, dovish, or neutral? What are the implications for interest rates and liquidity?\n"

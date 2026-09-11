@@ -20,6 +20,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_proxy_governance,
     get_activist_filings,
     get_form_8k_events,
+    get_earnings_call_transcripts,
     web_search,
     WEB_SEARCH_INSTRUCTION,
 )
@@ -48,6 +49,7 @@ def create_business_analyst(llm, enable_web_search=True):
             get_proxy_governance,
             get_activist_filings,
             get_form_8k_events,
+            get_earnings_call_transcripts,
         ]
         if enable_web_search:
             tools.append(web_search)
@@ -79,7 +81,8 @@ def create_business_analyst(llm, enable_web_search=True):
             "- `get_properties_capacity`: Item 2 owned/leased footprint, data-center/plant capacity — the supply-side limit on growth.\n"
             "- `get_proxy_governance`: Latest DEF 14A proxy — executive comp, related-party transactions, director independence, say-on-pay.\n"
             "- `get_activist_filings`: Recent 13D/13G activist filings with the Purpose-of-Transaction clause — a catalyst signal.\n"
-            "- `get_form_8k_events`: Recent 8-Ks classified by event type (earnings, exec change, M&A, debt default, guidance).\n\n"
+            "- `get_form_8k_events`: Recent 8-Ks classified by event type (earnings, exec change, M&A, debt default, guidance).\n"
+            "- `get_earnings_call_transcripts`: The last ~2 quarterly earnings-call transcripts (takeaways, risks, guidance-weighted prepared-remarks excerpts). Use them to assess management guidance quality, tone shifts across quarters, and whether management delivered on prior promises (compare the guidance given in the older call against the results reported in the newer one).\n\n"
             "After gathering all data, write a comprehensive business analysis report that "
             "answers each of the following questions with specific evidence, numbers, and "
             "quotes from the filings:\n\n"
@@ -172,7 +175,15 @@ def create_business_analyst(llm, enable_web_search=True):
             "17. What are the biggest risks that could permanently impair the business?\n"
             "18. Would I be comfortable owning this company if the stock market closed for 10 years?\n"
             "19. What is the company's intrinsic value?\n"
-            "20. Is the stock trading at a meaningful discount to intrinsic value (margin of safety)?"
+            "20. Is the stock trading at a meaningful discount to intrinsic value (margin of safety)?\n\n"
+
+            "## Supply-chain & counterparty extraction (from filings you already read)\n"
+            "While reading Item 1 (Business), Item 1A, and MD&A, explicitly extract any named "
+            "suppliers, key customers, distribution partners, or single-source dependencies the "
+            "company itself discloses. Report them in a short 'Supply-chain & counterparties' "
+            "subsection: who the company depends on, whether the dependency is disclosed as a "
+            "risk, and what happens if that counterparty fails. If the filings name no "
+            "counterparties, say so explicitly rather than staying silent."
             + (WEB_SEARCH_INSTRUCTION if enable_web_search else "")
             + get_language_instruction()
             + get_report_hygiene_instruction(),
