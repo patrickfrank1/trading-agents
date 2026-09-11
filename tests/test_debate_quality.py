@@ -151,7 +151,7 @@ class TestGraphCompiles:
 
         cl = ConditionalLogic(max_debate_rounds=2, max_risk_discuss_rounds=2)
         tool_nodes = {k: ToolNode([_stub_tool]) for k in (
-            "market", "social", "news", "fundamentals", "macro", "business"
+            "market", "news", "fundamentals", "macro", "business", "sector"
         )}
         gs = GraphSetup(_stub(), _stub(), tool_nodes, cl)
         workflow = gs.setup_graph(["market", "news", "fundamentals", "business"])

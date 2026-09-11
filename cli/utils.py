@@ -11,10 +11,10 @@ console = Console()
 TICKER_INPUT_EXAMPLES = "Examples: SPY, CNC.TO, 7203.T, 0700.HK"
 
 ANALYST_ORDER = [
-    ("Market Analyst", AnalystType.MARKET),
-    ("Social Media Analyst", AnalystType.SOCIAL),
+    ("Market Analyst (entry timing)", AnalystType.MARKET),
     ("News Analyst", AnalystType.NEWS),
     ("Fundamentals Analyst", AnalystType.FUNDAMENTALS),
+    ("Sector Specialist (auto-selected)", AnalystType.SECTOR),
     ("Macro Analyst", AnalystType.MACRO),
     ("Business Analyst", AnalystType.BUSINESS),
 ]

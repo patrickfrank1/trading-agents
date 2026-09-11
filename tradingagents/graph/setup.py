@@ -53,16 +53,16 @@ class GraphSetup:
         return self.debate_llms.get(key, self.quick_thinking_llm)
 
     def setup_graph(
-        self, selected_analysts=["market", "social", "news", "fundamentals"]
+        self, selected_analysts=["market", "news", "fundamentals", "sector"]
     ):
         """Set up and compile the agent workflow graph.
 
         Args:
             selected_analysts (list): List of analyst types to include. Options are:
-                - "market": Market analyst
-                - "social": Social media analyst
+                - "market": Market analyst (entry-timing gate)
                 - "news": News analyst
                 - "fundamentals": Fundamentals analyst
+                - "sector": Sector specialist (dynamically allocated by sector/asset class)
                 - "macro": Macro analyst
                 - "business": Business analyst
         """
@@ -81,14 +81,6 @@ class GraphSetup:
             )
             delete_nodes["market"] = create_msg_delete()
             tool_nodes["market"] = self.tool_nodes["market"]
-
-        if "social" in selected_analysts:
-            analyst_nodes["social"] = create_social_media_analyst(
-                self.quick_thinking_llm,
-                enable_web_search=self.enable_web_search,
-            )
-            delete_nodes["social"] = create_msg_delete()
-            tool_nodes["social"] = self.tool_nodes["social"]
 
         if "news" in selected_analysts:
             analyst_nodes["news"] = create_news_analyst(
@@ -121,6 +113,14 @@ class GraphSetup:
             )
             delete_nodes["business"] = create_msg_delete()
             tool_nodes["business"] = self.tool_nodes["business"]
+
+        if "sector" in selected_analysts:
+            analyst_nodes["sector"] = create_sector_analyst(
+                self.quick_thinking_llm,
+                enable_web_search=self.enable_web_search,
+            )
+            delete_nodes["sector"] = create_msg_delete()
+            tool_nodes["sector"] = self.tool_nodes["sector"]
 
         # Create researcher and manager nodes.
         # Each debater may use a dedicated (e.g. different-temperature) LLM so

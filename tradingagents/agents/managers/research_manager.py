@@ -45,9 +45,9 @@ def create_research_manager(llm):
 Commit to a clear stance whenever the debate's strongest arguments warrant one; reserve Hold for situations where the evidence on both sides is genuinely balanced.
 
 **Analyst Weighting Priority** — When evaluating the debate, weight arguments according to these priorities:
-- Business Analyst (35%) and Fundamentals Analyst (25%) together account for 60% of the investment thesis. A recommendation should be grounded primarily in business value, competitive positioning, and financial health.
-- Macro Analyst (10%), Market Analyst (10%), News Analyst (10%), and Sentiment Analyst (10%) together account for 40%. These provide important context and timing signals but should not override the fundamental business thesis.
-- Technical indicators (Market Analyst) should influence entry/exit timing, not the directional BUY/SELL decision itself.
+- Business Analyst (30%), Fundamentals Analyst (25%), and Sector Specialist (15%) together account for 70% of the investment thesis. A recommendation should be grounded primarily in business value, competitive positioning, sector dynamics, and financial health.
+- Macro Analyst (10%), Market Analyst (10%), and News Analyst (10%) together account for 30%. These provide important context and entry-timing signals but should not override the fundamental business thesis.
+- Technical indicators (Market Analyst) are an ENTRY-TIMING GATE only: they should influence whether now is a good moment to initiate or add, not the directional BUY/SELL decision, and never the definition of exit levels. Exits must be justified by fundamentals or thesis invalidation, not technicals.
 
 **How to use the inputs below:**
 - The raw Business and Fundamentals reports are the primary evidence. The debate is a *filter* over them, not a substitute — read both. Do not let a rhetorically strong but unsupported debate claim override the source data.

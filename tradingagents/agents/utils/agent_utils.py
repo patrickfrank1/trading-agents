@@ -137,13 +137,64 @@ def get_report_hygiene_instruction() -> str:
     )
 
 
+# Cache of quote-type / sector / industry lookups so each ticker hits the
+# vendor at most once per process (analyst nodes re-resolve per invocation).
+_INSTRUMENT_PROFILE_CACHE: dict = {}
+
+
+def resolve_instrument_profile(ticker: str) -> dict:
+    """Best-effort lookup of quote type, sector, and industry for a ticker.
+
+    Returns a dict with keys ``quote_type`` (e.g. ``ETF``, ``EQUITY``),
+    ``sector``, and ``industry``. Falls back to ``"Unknown"`` values when the
+    lookup fails (offline, unsupported ticker, rate limit) so callers can
+    always proceed. Results are cached per process.
+    """
+    key = (ticker or "").strip().upper()
+    if not key:
+        return {"quote_type": "Unknown", "sector": "Unknown", "industry": "Unknown"}
+    if key in _INSTRUMENT_PROFILE_CACHE:
+        return _INSTRUMENT_PROFILE_CACHE[key]
+    profile = {"quote_type": "Unknown", "sector": "Unknown", "industry": "Unknown"}
+    try:
+        import yfinance as yf
+
+        info = yf.Ticker(ticker).info or {}
+        if info:
+            profile = {
+                "quote_type": str(info.get("quoteType") or "Unknown"),
+                "sector": str(info.get("sector") or "Unknown"),
+                "industry": str(info.get("industry") or "Unknown"),
+            }
+    except Exception:
+        pass
+    _INSTRUMENT_PROFILE_CACHE[key] = profile
+    return profile
+
+
 def build_instrument_context(ticker: str) -> str:
     """Describe the exact instrument so agents preserve exchange-qualified tickers."""
-    return (
+    profile = resolve_instrument_profile(ticker)
+    context = (
         f"The instrument to analyze is `{ticker}`. "
         "Use this exact ticker in every tool call, report, and recommendation, "
         "preserving any exchange suffix (e.g. `.TO`, `.L`, `.HK`, `.T`)."
     )
+    quote_type = profile.get("quote_type", "Unknown")
+    if quote_type.lower() == "etf":
+        context += (
+            " This instrument is an EXCHANGE-TRADED FUND (ETF), not an operating"
+            " company: it has no income statement, balance sheet, earnings, or"
+            " filings of its own. Any analysis must be fund-level (holdings,"
+            " index methodology, fees, tracking, flows) — do NOT fabricate"
+            " company financials for it."
+        )
+    elif quote_type not in ("Unknown", ""):
+        context += f" Instrument type: {quote_type}"
+    sector = profile.get("sector", "Unknown")
+    if sector and sector != "Unknown":
+        context += f" GICS sector: {sector}. Industry: {profile.get('industry', 'Unknown')}."
+    return context
 
 
 def get_facts_block(state: dict) -> str:
@@ -190,11 +241,14 @@ def get_reports_digest(state: dict) -> str:
         return ""
     business = state.get("business_report", "")
     fundamentals = state.get("fundamentals_report", "")
+    sector = state.get("sector_report", "")
     parts = []
     if business:
         parts.append(f"**Business Analyst report:**\n{business}")
     if fundamentals:
         parts.append(f"**Fundamentals Analyst report:**\n{fundamentals}")
+    if sector:
+        parts.append(f"**Sector Specialist report:**\n{sector}")
     return ("\n\n".join(parts) + "\n") if parts else ""
 
 

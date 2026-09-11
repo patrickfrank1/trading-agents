@@ -51,7 +51,7 @@ def create_trader(llm):
                     f"Based on a comprehensive analysis by a team of analysts, here is an investment "
                     f"plan tailored for {company_name}. {instrument_context} This plan incorporates "
                     f"insights from current technical market trends, macroeconomic indicators, and "
-                    f"social media sentiment. Use this plan as a foundation for evaluating your next "
+                    f"sector-specific industry analysis. Use this plan as a foundation for evaluating your next "
                     f"trading decision — but verify it against the debate and source reports below.\n\n"
                     f"Proposed Investment Plan: {investment_plan}\n\n"
                     f"{facts_block}"

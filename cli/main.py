@@ -55,11 +55,11 @@ class MessageBuffer:
     # Analyst name mapping
     ANALYST_MAPPING = {
         "market": "Market Analyst",
-        "social": "Social Analyst",
         "news": "News Analyst",
         "fundamentals": "Fundamentals Analyst",
         "macro": "Macro Analyst",
         "business": "Business Analyst",
+        "sector": "Sector Specialist",
     }
 
     # Report section mapping: section -> (analyst_key for filtering, finalizing_agent)
@@ -67,11 +67,11 @@ class MessageBuffer:
     # finalizing_agent: which agent must be "completed" for this report to count as done
     REPORT_SECTIONS = {
         "market_report": ("market", "Market Analyst"),
-        "sentiment_report": ("social", "Social Analyst"),
         "news_report": ("news", "News Analyst"),
         "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
         "macro_report": ("macro", "Macro Analyst"),
         "business_report": ("business", "Business Analyst"),
+        "sector_report": ("sector", "Sector Specialist"),
         "investment_plan": (None, "Research Manager"),
         "trader_investment_plan": (None, "Trader"),
         "final_trade_decision": (None, "Portfolio Manager"),
@@ -176,12 +176,12 @@ class MessageBuffer:
         if latest_section and latest_content:
             # Format the current section for display
             section_titles = {
-                "market_report": "Market Analysis",
-                "sentiment_report": "Social Sentiment",
+                "market_report": "Market Analysis (entry timing)",
                 "news_report": "News Analysis",
                 "fundamentals_report": "Fundamentals Analysis",
                 "macro_report": "Macro Analysis",
                 "business_report": "Business Analysis",
+                "sector_report": "Sector Specialist Analysis",
                 "investment_plan": "Research Team Decision",
                 "trader_investment_plan": "Trading Team Plan",
                 "final_trade_decision": "Portfolio Management Decision",
@@ -197,16 +197,12 @@ class MessageBuffer:
         report_parts = []
 
         # Analyst Team Reports - use .get() to handle missing sections
-        analyst_sections = ["market_report", "sentiment_report", "news_report", "fundamentals_report", "macro_report", "business_report"]
+        analyst_sections = ["market_report", "news_report", "fundamentals_report", "macro_report", "business_report", "sector_report"]
         if any(self.report_sections.get(section) for section in analyst_sections):
             report_parts.append("## Analyst Team Reports")
             if self.report_sections.get("market_report"):
                 report_parts.append(
-                    f"### Market Analysis\n{self.report_sections['market_report']}"
-                )
-            if self.report_sections.get("sentiment_report"):
-                report_parts.append(
-                    f"### Social Sentiment\n{self.report_sections['sentiment_report']}"
+                    f"### Market Analysis (entry timing)\n{self.report_sections['market_report']}"
                 )
             if self.report_sections.get("news_report"):
                 report_parts.append(
@@ -223,6 +219,10 @@ class MessageBuffer:
             if self.report_sections.get("business_report"):
                 report_parts.append(
                     f"### Business Analysis\n{self.report_sections['business_report']}"
+                )
+            if self.report_sections.get("sector_report"):
+                report_parts.append(
+                    f"### Sector Specialist Analysis\n{self.report_sections['sector_report']}"
                 )
 
         # Research Team Reports
@@ -300,11 +300,11 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
     all_teams = {
         "Analyst Team": [
             "Market Analyst",
-            "Social Analyst",
             "News Analyst",
             "Fundamentals Analyst",
             "Macro Analyst",
             "Business Analyst",
+            "Sector Specialist",
         ],
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
         "Trading Team": ["Trader"],
@@ -758,10 +758,6 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path, config: dict 
         analysts_dir.mkdir(exist_ok=True)
         (analysts_dir / "market.md").write_text(final_state["market_report"], encoding="utf-8")
         analyst_parts.append(("Market Analyst", final_state["market_report"]))
-    if final_state.get("sentiment_report"):
-        analysts_dir.mkdir(exist_ok=True)
-        (analysts_dir / "sentiment.md").write_text(final_state["sentiment_report"], encoding="utf-8")
-        analyst_parts.append(("Social Analyst", final_state["sentiment_report"]))
     if final_state.get("news_report"):
         analysts_dir.mkdir(exist_ok=True)
         (analysts_dir / "news.md").write_text(final_state["news_report"], encoding="utf-8")
@@ -778,6 +774,10 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path, config: dict 
         analysts_dir.mkdir(exist_ok=True)
         (analysts_dir / "business.md").write_text(final_state["business_report"], encoding="utf-8")
         analyst_parts.append(("Business Analyst", final_state["business_report"]))
+    if final_state.get("sector_report"):
+        analysts_dir.mkdir(exist_ok=True)
+        (analysts_dir / "sector.md").write_text(final_state["sector_report"], encoding="utf-8")
+        analyst_parts.append(("Sector Specialist", final_state["sector_report"]))
     if analyst_parts:
         content = "\n\n".join(f"### {name}\n{text}" for name, text in analyst_parts)
         sections.append(f"## I. Analyst Team Reports\n\n{content}")
@@ -885,8 +885,6 @@ def display_complete_report(final_state):
     analysts = []
     if final_state.get("market_report"):
         analysts.append(("Market Analyst", final_state["market_report"]))
-    if final_state.get("sentiment_report"):
-        analysts.append(("Social Analyst", final_state["sentiment_report"]))
     if final_state.get("news_report"):
         analysts.append(("News Analyst", final_state["news_report"]))
     if final_state.get("fundamentals_report"):
@@ -895,6 +893,8 @@ def display_complete_report(final_state):
         analysts.append(("Macro Analyst", final_state["macro_report"]))
     if final_state.get("business_report"):
         analysts.append(("Business Analyst", final_state["business_report"]))
+    if final_state.get("sector_report"):
+        analysts.append(("Sector Specialist", final_state["sector_report"]))
     if analysts:
         console.print(Panel("[bold]I. Analyst Team Reports[/bold]", border_style="cyan"))
         for title, content in analysts:
@@ -956,22 +956,22 @@ def update_research_team_status(status):
 
 
 # Ordered list of analysts for status transitions
-ANALYST_ORDER = ["market", "social", "news", "fundamentals", "macro", "business"]
+ANALYST_ORDER = ["market", "news", "fundamentals", "macro", "business", "sector"]
 ANALYST_AGENT_NAMES = {
     "market": "Market Analyst",
-    "social": "Social Analyst",
     "news": "News Analyst",
     "fundamentals": "Fundamentals Analyst",
     "macro": "Macro Analyst",
     "business": "Business Analyst",
+    "sector": "Sector Specialist",
 }
 ANALYST_REPORT_MAP = {
     "market": "market_report",
-    "social": "sentiment_report",
     "news": "news_report",
     "fundamentals": "fundamentals_report",
     "macro": "macro_report",
     "business": "business_report",
+    "sector": "sector_report",
 }
 
 
@@ -1452,7 +1452,7 @@ def analyze(
     analysts: Optional[List[str]] = typer.Option(
         None,
         "--analyst", "-a",
-        help="Analysts to include. Repeat for multiple: -a market -a news. Options: market, social, news, fundamentals, macro.",
+        help="Analysts to include. Repeat for multiple: -a market -a news. Options: market, news, fundamentals, macro, business, sector.",
     ),
     research_depth: str = typer.Option(
         None,

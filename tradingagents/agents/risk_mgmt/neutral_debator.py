@@ -12,7 +12,7 @@ def create_neutral_debator(llm):
         current_conservative_response = risk_debate_state.get("current_conservative_response", "")
 
         market_research_report = state["market_report"]
-        sentiment_report = state["sentiment_report"]
+        sector_report = state.get("sector_report", "")
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
         macro_report = state["macro_report"]
@@ -38,8 +38,8 @@ This is a structured debate. Rules of engagement:
 The trader's decision under review:
 {trader_decision}
 
-Market Research Report: {market_research_report}
-Social Media Sentiment Report: {sentiment_report}
+Market Research Report (entry-timing / technicals): {market_research_report}
+Sector Specialist Report: {sector_report}
 Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
 Macroeconomic Analysis Report: {macro_report}

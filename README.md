@@ -56,7 +56,7 @@
 
 ## TradingAgents Framework
 
-TradingAgents is a multi-agent trading framework that mirrors the dynamics of real-world trading firms. By deploying specialized LLM-powered agents: from fundamental analysts, sentiment experts, and technical analysts, to trader, risk management team, the platform collaboratively evaluates market conditions and informs trading decisions. Moreover, these agents engage in dynamic discussions to pinpoint the optimal strategy.
+TradingAgents is a multi-agent trading framework that mirrors the dynamics of real-world trading firms. By deploying specialized LLM-powered agents: from fundamental analysts, sector specialists, and technical analysts, to trader, risk management team, the platform collaboratively evaluates market conditions and informs trading decisions. Moreover, these agents engage in dynamic discussions to pinpoint the optimal strategy.
 
 <p align="center">
   <img src="assets/schema.png" style="width: 100%; height: auto;">
@@ -67,10 +67,10 @@ TradingAgents is a multi-agent trading framework that mirrors the dynamics of re
 Our framework decomposes complex trading tasks into specialized roles. This ensures the system achieves a robust, scalable approach to market analysis and decision-making.
 
 ### Analyst Team
-- Fundamentals Analyst: Evaluates company financials and performance metrics, identifying intrinsic values and potential red flags.
-- Sentiment Analyst: Analyzes social media and public sentiment using sentiment scoring algorithms to gauge short-term market mood.
+- Fundamentals Analyst: Evaluates company financials and performance metrics, identifying intrinsic values and potential red flags. Falls back to fund-level analysis (costs, tracking, holdings) for ETFs.
+- Sector Specialist: Dynamically allocated based on the instrument's sector or asset class (pharma, semiconductors, utilities, consumer staples, ETF, ...). Supplies sector-specific value drivers, KPIs, regulation, cyclicality, and red flags.
 - News Analyst: Monitors global news and macroeconomic indicators, interpreting the impact of events on market conditions.
-- Technical Analyst: Utilizes technical indicators (like MACD and RSI) to detect trading patterns and forecast price movements.
+- Market Analyst: Entry-timing gate — uses technical indicators, momentum, and positioning to assess whether NOW is a favourable time to initiate or add. Does not define the directional thesis or exit levels.
 
 <p align="center">
   <img src="assets/analyst.png" width="100%" style="display: inline-block; margin: 0 2%;">
@@ -236,7 +236,7 @@ tradingagents analyze --non-interactive \
 | `--ticker` | `-t` | `SPY` | Ticker symbol (e.g. `AAPL`, `7203.T`, `0700.HK`) |
 | `--date` | `-d` | today | Analysis date in `YYYY-MM-DD` format |
 | `--language` | `-l` | `English` | Output language for reports |
-| `--analyst` | `-a` | all 4 | Analysts to include (repeatable): `market`, `social`, `news`, `fundamentals` |
+| `--analyst` | `-a` | all 6 | Analysts to include (repeatable): `market`, `news`, `fundamentals`, `macro`, `business`, `sector` |
 | `--research-depth` | | `medium` | Debate thoroughness: `shallow`, `medium`, or `deep` |
 | `--provider` | `-p` | `openai` | LLM provider: `openai`, `google`, `anthropic`, `xai`, `deepseek`, `qwen`, `glm`, `openrouter`, `azure`, `ollama` |
 | `--shallow-model` | | *(first catalog model)* | Model ID for quick-thinking agents |

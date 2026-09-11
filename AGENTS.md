@@ -46,7 +46,7 @@ No linter, typechecker, or formatter is configured in the project.
 tradingagents/
   graph/           LangGraph orchestration: trading_graph.py is the main entry
   agents/          Agent implementations
-    analysts/      Market, Social, News, Fundamentals — produce reports
+    analysts/      Market (entry-timing gate), News, Fundamentals, Macro, Business, Sector Specialist (auto-selected by sector/asset class) — produce reports
     researchers/   Bull/Bear debate
     managers/      Research Manager, Portfolio Manager — produce structured decisions
     trader/        Trader — produces transaction proposals

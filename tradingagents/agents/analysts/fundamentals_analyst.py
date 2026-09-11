@@ -1,6 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
+    resolve_instrument_profile,
     get_balance_sheet,
     get_cashflow,
     compute_dcf_analysis,
@@ -70,11 +71,31 @@ Use the company's sector, dividend policy, growth profile, and financial structu
 After running each valuation tool, synthesize the results: compare fair value estimates, identify convergence/divergence, and provide an overall valuation assessment.
 """
 
+ETF_FUNDAMENTALS_GUIDE = """
+**ETF / FUND MODE — this instrument is an exchange-traded fund, not an operating company.**
+Company fundamentals (EPS, P/E, balance sheet, cash flow, DCF) DO NOT EXIST here — never fabricate them, and ignore any tool output that looks like company financials (it is an artifact of the data vendor). Most filing-signal tools will return nothing for an ETF; that is expected — do not treat it as an error and move on.
+
+Instead, analyze the fund's economics:
+1. **Cost & tracking**: expense ratio, historical tracking difference/error vs the stated index (web search for fund factsheets if the tools lack them).
+2. **Holdings**: top-10 weights, sector/country concentration, effective number of holdings, overlap risk with popular indices.
+3. **Flows & size**: AUM trajectory, creation/redemption health — small/declining AUM is a closure risk.
+4. **Structure**: physical vs synthetic replication, securities lending, distribution policy, tax efficiency.
+5. **Underlying valuation**: use web search for the index-level valuation (index P/E, earnings yield, historical percentile) — that is the only honest "valuation" for an ETF. State clearly what valuation regime the underlying index is in.
+Conclude with an assessment of whether this fund is a sound, low-cost, faithful expression of the exposure it advertises.
+"""
+
 
 def create_fundamentals_analyst(llm, enable_web_search=True):
     def fundamentals_analyst_node(state):
         current_date = state["trade_date"]
-        instrument_context = build_instrument_context(state["company_of_interest"])
+        ticker = state["company_of_interest"]
+        instrument_context = build_instrument_context(ticker)
+        profile = resolve_instrument_profile(ticker)
+        is_fund = profile.get("quote_type", "").strip().lower() in (
+            "etf",
+            "mutual fund",
+            "index",
+        )
 
         valuation_tools = [
             compute_dcf_analysis,
@@ -125,8 +146,8 @@ def create_fundamentals_analyst(llm, enable_web_search=True):
 
         system_message = (
             "You are a researcher tasked with analyzing fundamental information over the past week about a company. Please write a comprehensive report of the company's fundamental information such as financial documents, company profile, basic company financials, and company financial history to gain a full view of the company's fundamental information to inform traders. Make sure to include as much detail as possible. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
-            + VALUATION_METHODS_GUIDE
-            + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
+            + (ETF_FUNDAMENTALS_GUIDE if is_fund else VALUATION_METHODS_GUIDE)
+            + ("" if is_fund else " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
             + " Use the available tools: `get_fundamentals` for comprehensive company analysis, `get_balance_sheet`, `get_cashflow`, and `get_income_statement` for specific financial statements."
             + " Also call `get_analyst_estimates` to capture sell-side consensus EPS/revenue estimates and price targets — use these to test whether valuation multiples (e.g. forward P/E) are consistent with the consensus EPS trajectory."
             + " Call `get_credit_and_debt_detail` to report total debt, the long/short-term split, and interest coverage — quote these figures directly so downstream debt/refinancing claims can be verified."
@@ -136,8 +157,8 @@ def create_fundamentals_analyst(llm, enable_web_search=True):
             + " Call `get_dilution_profile` to quantify per-share value creation or erosion: the 5-year share-count trajectory, the annualized dilution rate, and whether buybacks actually offset stock-based compensation — net SBC dilution silently erodes per-share value even when headline EPS grows."
             + " When `get_segment_geographic_reporting` shows material non-US revenue, cross-reference it with `get_fx_rates` (current rates and 1/3/12-month trends): flag which currencies drive translation risk for reported revenue, and whether recent FX moves are a tailwind or headwind. Also note any input-cost currency mismatch the filings disclose."
             + " Use `get_regime_analog` to see how the stock and its sector behaved during the last few Fed hiking/cutting cycles — use these rows to ground valuation-context claims (e.g. 'rates like 2022') in the company's actual regime history instead of asserted analogies."
-            + " Not every tool applies to every company — pick the filing signals relevant to this company's sector and capital structure."
-            + "\n\n**Valuation hygiene (mandatory):** When a valuation engine prints a ⚠️ QA/sanity warning (e.g. comp-set outlier flag, extreme DCF fair value, >20x spread), surface that warning in your report and treat the flagged output as a bounded estimate, not a precise value. Do NOT silently include a comp-set median you have been told is distorted by hyper-growth peers, and do NOT present a DCF fair value implying >80% downside as if it were settled intrinsic value. Cross-check flagged outputs against EPV, comps, and the business case."
+            + " Not every tool applies to every company — pick the filing signals relevant to this company's sector and capital structure.")
+            + "\n\n**Valuation hygiene (mandatory):** When a valuation engine prints a ⚠️ QA/sanity warning (e.g. comp-set outlier flag, extreme DCF fair value, >20x spread), surface that warning in your report and treat the flagged output as a bounded estimate, not a precise value. Do NOT silently include a comp-set median you have been told is distorted by hyper-growth peers, and do NOT present a DCF fair value implying >80% downside as if it were settled intrinsic value. Cross-check flagged outputs against EPV, comps, and the business case. All fair-value math must be computed in ONE consistent currency: convert reported financials and per-share data to a single currency at an explicit FX rate before applying multiples or discounting."
             + (WEB_SEARCH_INSTRUCTION if enable_web_search else "")
             + get_language_instruction()
             + get_report_hygiene_instruction(),

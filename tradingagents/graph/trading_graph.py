@@ -118,7 +118,7 @@ class TradingAgentsGraph:
 
     def __init__(
         self,
-        selected_analysts=["market", "social", "news", "fundamentals"],
+        selected_analysts=["market", "news", "fundamentals", "sector"],
         debug=False,
         config: Dict[str, Any] = None,
         callbacks: Optional[List] = None,
@@ -285,9 +285,15 @@ class TradingAgentsGraph:
                 get_short_interest,
                 get_relative_momentum_vs_sector,
             ],
-            "social": [
-                # News tools for social media analysis
-                get_news,
+            "sector": [
+                # Sector-specialist tools: industry structure, benchmarks, peers,
+                # filings, transcripts
+                get_company_profile,
+                get_sector_performance,
+                get_peer_comparison,
+                get_10k_filing,
+                get_20f_filing,
+                get_earnings_call_transcripts,
             ],
             "news": [
                 # News and insider information
@@ -566,11 +572,11 @@ class TradingAgentsGraph:
             "company_of_interest": final_state["company_of_interest"],
             "trade_date": final_state["trade_date"],
             "market_report": final_state["market_report"],
-            "sentiment_report": final_state["sentiment_report"],
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
-            "macro_report": final_state["macro_report"],
-            "business_report": final_state["business_report"],
+            "macro_report": final_state.get("macro_report", ""),
+            "business_report": final_state.get("business_report", ""),
+            "sector_report": final_state.get("sector_report", ""),
             "facts_snapshot": final_state.get("facts_snapshot", ""),
             "claim_audit": final_state.get("claim_audit", ""),
             "investment_debate_state": {

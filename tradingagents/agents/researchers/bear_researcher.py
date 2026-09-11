@@ -9,7 +9,7 @@ def create_bear_researcher(llm):
 
         current_response = investment_debate_state.get("current_response", "")
         market_research_report = state["market_report"]
-        sentiment_report = state["sentiment_report"]
+        sector_report = state.get("sector_report", "")
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
         macro_report = state["macro_report"]
@@ -35,20 +35,21 @@ This is a structured ADVERSARIAL DEBATE, not a doom-scroll. Your credibility dep
 - Cash-flow sufficiency: FCF, capex burden, interest coverage, funding gaps (Fundamentals)
 - Valuation discipline: DCF / EPV / comps vs. current price, margin of safety (Fundamentals)
 - Competitive threats, execution risk, demand cyclicality (Business)
+- Sector-specific threats: regulatory action, industry overcapacity, technology substitution (Sector Specialist)
 - Macro / liquidity headwinds that compound the above (Macro) — context, not the core
 
 **Analyst report weightings (respect these priorities):**
-- Business Analyst (35%) — primary driver. Fundamentals Analyst (25%) — core financials.
-- Macro (10%), Market (10%), News (10%), Sentiment (10%) — context and timing, not the directional thesis.
+- Business Analyst (30%) — primary driver. Fundamentals Analyst (25%) — core financials. Sector Specialist (15%) — industry structure and sector dynamics.
+- Macro (10%), Market (10%), News (10%) — context and entry timing, not the directional thesis.
 
 {facts_block}
 **Resources:**
 Business analyst report: {business_report}
 Company fundamentals report: {fundamentals_report}
+Sector specialist report: {sector_report}
 Macroeconomic report: {macro_report}
-Market research report (technical indicators): {market_research_report}
+Market research report (entry-timing / technicals): {market_research_report}
 Latest world affairs news: {news_report}
-Social media sentiment report: {sentiment_report}
 
 **Your own prior turns (do NOT repeat these — introduce new evidence or concede instead):**
 {bear_history}

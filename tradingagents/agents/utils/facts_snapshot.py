@@ -53,7 +53,7 @@ def _collect_reports(state: dict) -> str:
         ("macro_report", "Macro Analyst"),
         ("business_report", "Business Analyst"),
         ("news_report", "News Analyst"),
-        ("sentiment_report", "Sentiment Analyst"),
+        ("sector_report", "Sector Specialist"),
     ):
         text = state.get(key, "")
         if text:

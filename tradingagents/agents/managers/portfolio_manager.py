@@ -63,10 +63,10 @@ def create_portfolio_manager(llm):
 **Analyst Weighting Priority** — used to assign impact ratings (same priority as the research team):
 - Business Analyst — Highest priority: competitive moat, management execution, product strategy, and long-term business value.
 - Fundamentals Analyst — Core financial analysis: profitability, valuation, balance sheet strength, and financial health.
+- Sector Specialist — Sector-specific dynamics: industry structure, regulation, cyclicality, and the sector's key value drivers.
 - Macro Analyst — Macroeconomic context: Fed policy, inflation, labor markets, and geopolitical factors.
-- Market Analyst — Technical indicators and price action for entry/exit timing — NOT for the directional thesis itself.
+- Market Analyst — Technical indicators and price action as an ENTRY-TIMING GATE only — NOT for the directional thesis itself, and NOT a source of exit levels. Exits must be justified by fundamentals or thesis invalidation.
 - News Analyst — Recent news flow, material events, and catalysts, but do not let news override fundamentals.
-- Sentiment Analyst — Social media and retail sentiment, supplementary signal only.
 
 **How to use the inputs below:**
 - The raw Business and Fundamentals reports are primary evidence alongside the risk debate. The debate is a *filter*, not a substitute.
@@ -74,13 +74,13 @@ def create_portfolio_manager(llm):
 - The Claim Audit lists debate claims flagged as unsupported/contradicted by the source reports — discount them when assigning impact.
 
 **Step 1 — Arguments Table:**
-First, compile a markdown table of the key BUY and SELL arguments extracted from the risk debate and supporting context below. Each row must include: the argument, its source analyst type, an impact rating (High / Medium / Low), and whether it supports BUY or SELL. Arguments sourced from Business Analyst or Fundamentals Analyst should generally carry High impact; arguments from Macro, Market, News, or Sentiment Analysts should generally carry Medium or Low impact. This table anchors your final decision in transparent, weighted evidence.
+First, compile a markdown table of the key BUY and SELL arguments extracted from the risk debate and supporting context below. Each row must include: the argument, its source analyst type, an impact rating (High / Medium / Low), and whether it supports BUY or SELL. Arguments sourced from Business Analyst, Fundamentals Analyst, or Sector Specialist should generally carry High impact; arguments from Macro, Market, or News Analysts should generally carry Medium or Low impact. This table anchors your final decision in transparent, weighted evidence.
 
 **Step 2 — Weighted Score:**
 Compute a single net score from -100 to +100 by weighing the arguments table (High = ±20, Medium = ±10, Low = ±5; positive for BUY, negative for SELL; clamp to [-100, +100]). The score must be auditable: a reader tallying the table should arrive at the same number. Map score to rating band (>=+40 Buy, +15..+39 Overweight, -14..+14 Hold, -39..-15 Underweight, <=-40 Sell). If your final rating falls outside the band implied by the score, you MUST explain the override in the investment thesis — silent overrides are not allowed.
 
 **Step 3 — Probability-Weighted Scenario Table:**
-Produce a three-row (Bull / Base / Bear) markdown table with explicit probability weights (summing to 100%), a price target per scenario, and the one-sentence driver. Compute and show the probability-weighted expected price. This forces an explicit view on any binary / "show-me" outcomes instead of leaving them implicit in prose.
+Produce a three-row (Bull / Base / Bear) markdown table with explicit probability weights (summing to 100%), a price target per scenario, and the one-sentence driver. Compute and show the probability-weighted expected price. Scenario price targets MUST be derived from fundamentals (earnings trajectories, margin scenarios, justified multiples on normalized earnings) — do NOT anchor them on sell-side price targets, options open-interest strikes, or 52-week highs/lows. This forces an explicit view on any binary / "show-me" outcomes instead of leaving them implicit in prose.
 
 **Step 4 — Trade Ticket:**
 Resolve the risk team's conflicting sizing and hedge proposals into ONE executable plan. Specify: action (consistent with the rating), position size as % of portfolio, entry/exit levels, hedge structure with concrete strikes and approximate premium (do NOT write "consider a collar" — write "buy 6-mo $110 put / sell $150 call, ~$0 net debit"), and named exit triggers. For a Hold with no new capital, state size = 0% for new capital and give the maintenance plan for existing holders.

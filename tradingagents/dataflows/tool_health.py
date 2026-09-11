@@ -108,11 +108,11 @@ def _build_checks(ticker: str, analysts: list[str], trade_date: str) -> list:
                 lambda: get_relative_momentum_vs_sector.invoke({"ticker": ticker}),
             )
         )
-    if "social" in analysts or "news" in analysts:
+    if "news" in analysts:
         checks.append(
             (
                 "get_news",
-                "social/news",
+                "news",
                 lambda: get_news.invoke(
                     {"ticker": ticker, "start_date": start, "end_date": end_str}
                 ),

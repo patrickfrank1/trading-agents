@@ -1,6 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
+    resolve_instrument_profile,
     get_language_instruction,
     get_report_hygiene_instruction,
     get_company_profile,
@@ -26,10 +27,35 @@ from tradingagents.agents.utils.agent_utils import (
 )
 
 
+ETF_BUSINESS_GUIDE = """
+
+## ETF / FUND MODE — this instrument is an exchange-traded fund, not an operating company
+
+Skip the operating-company template above and the Investor Readiness Checklist: an ETF has no products, customers, debt, earnings, or management capital allocation. Do NOT fabricate company financials, and ignore tool output that looks like company financials (data-vendor artifact). Company-filing and transcript tools will return nothing — that is expected; use `get_company_profile`, `get_sector_performance`, and `web_search` (fund homepage, factsheets, prospectus) instead.
+
+Write the analysis as an investment-case for the EXPOSURE:
+1. **Index & methodology** — what the fund tracks, how constituents are selected/weighted, and what exposures the methodology produces (e.g. cap-weighted mega-cap tilt).
+2. **Holdings & concentration** — top-10 weight, sector/country breakdown, effective number of holdings.
+3. **Cost & implementation** — expense ratio, tracking difference vs index over 3-5-10 years, premium/discount to NAV, bid/ask spread.
+4. **Flows & size** — AUM trend and closure risk.
+5. **Structural risks** — synthetic replication/counterparty risk, securities lending, distribution/tax treatment, any leverage or derivative overlay.
+6. **Why own this vs alternatives** — compare against the obvious competing ETFs for the same exposure on cost, tracking, and liquidity.
+
+Conclude with a summary table and an explicit statement of what investor and what horizon this exposure suits.
+"""
+
+
 def create_business_analyst(llm, enable_web_search=True):
     def business_analyst_node(state):
         current_date = state["trade_date"]
-        instrument_context = build_instrument_context(state["company_of_interest"])
+        ticker = state["company_of_interest"]
+        instrument_context = build_instrument_context(ticker)
+        profile = resolve_instrument_profile(ticker)
+        is_fund = profile.get("quote_type", "").strip().lower() in (
+            "etf",
+            "mutual fund",
+            "index",
+        )
 
         tools = [
             get_company_profile,
@@ -184,6 +210,7 @@ def create_business_analyst(llm, enable_web_search=True):
             "subsection: who the company depends on, whether the dependency is disclosed as a "
             "risk, and what happens if that counterparty fails. If the filings name no "
             "counterparties, say so explicitly rather than staying silent."
+            + (ETF_BUSINESS_GUIDE if is_fund else "")
             + (WEB_SEARCH_INSTRUCTION if enable_web_search else "")
             + get_language_instruction()
             + get_report_hygiene_instruction(),
