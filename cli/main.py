@@ -1099,8 +1099,51 @@ def run_analysis(
     save_path: Path = None,
     display_report: bool = False,
     refresh_rate: float = 1.0,
+    skip_tool_check: bool = False,
 ):
     selections = get_user_selections(prefill=prefill, non_interactive=non_interactive)
+
+    # Pre-flight tool health check: probe one representative tool per
+    # selected analyst category before spending LLM tokens. Informational —
+    # only a total failure aborts the run.
+    if not skip_tool_check:
+        from tradingagents.dataflows.tool_health import (
+            run_tool_health_checks,
+            summarize_tool_health,
+        )
+
+        tool_results = run_tool_health_checks(
+            ticker=selections["ticker"],
+            analysts=[a.value for a in selections["analysts"]],
+            trade_date=selections["analysis_date"],
+        )
+        tool_table = Table(title="Tool Health Check", show_lines=False)
+        tool_table.add_column("Status")
+        tool_table.add_column("Tool")
+        tool_table.add_column("Category")
+        tool_table.add_column("Time")
+        tool_table.add_column("Detail", overflow="fold")
+        for r in tool_results:
+            color = {"ok": "green", "warn": "yellow", "fail": "red"}[r.status]
+            label = {"ok": "OK", "warn": "NO DATA", "fail": "BROKEN"}[r.status]
+            tool_table.add_row(
+                f"[{color}]{label}[/{color}]",
+                r.name,
+                r.category,
+                f"{r.seconds:.1f}s",
+                r.detail,
+            )
+        console.print(tool_table)
+        summary = summarize_tool_health(tool_results)
+        if all(r.status == "fail" for r in tool_results):
+            console.print(f"[bold red]{summary}[/bold red]")
+            console.print(
+                "[bold red]Aborting: every data source failed, the analysis would "
+                "produce garbage. Fix connectivity/config and retry "
+                "(or pass --skip-tool-check to force a run).[/bold red]"
+            )
+            raise typer.Exit(1)
+        console.print(f"[cyan]{summary}[/cyan]")
 
     # Create config with selected research depth
     config = DEFAULT_CONFIG.copy()
@@ -1471,6 +1514,11 @@ def analyze(
         "--non-interactive",
         help="Skip all prompts. Uses defaults for unspecified options. Implies --save.",
     ),
+    skip_tool_check: bool = typer.Option(
+        False,
+        "--skip-tool-check",
+        help="Skip the pre-flight tool health check (runs by default; aborts only if every data source fails).",
+    ),
 ):
     if clear_checkpoints:
         from tradingagents.graph.checkpointer import clear_all_checkpoints
@@ -1518,6 +1566,7 @@ def analyze(
         save_path=Path(save_path) if save_path else None,
         display_report=display_report,
         refresh_rate=refresh_rate,
+        skip_tool_check=skip_tool_check,
     )
 
 
