@@ -20,10 +20,12 @@ from tradingagents.agents.utils.agent_utils import (
     get_proxy_governance,
     get_activist_filings,
     get_form_8k_events,
+    web_search,
+    WEB_SEARCH_INSTRUCTION,
 )
 
 
-def create_business_analyst(llm):
+def create_business_analyst(llm, enable_web_search=True):
     def business_analyst_node(state):
         current_date = state["trade_date"]
         instrument_context = build_instrument_context(state["company_of_interest"])
@@ -47,6 +49,8 @@ def create_business_analyst(llm):
             get_activist_filings,
             get_form_8k_events,
         ]
+        if enable_web_search:
+            tools.append(web_search)
 
         system_message = (
             "You are a senior business analyst and investment researcher. Your job is to "
@@ -169,6 +173,7 @@ def create_business_analyst(llm):
             "18. Would I be comfortable owning this company if the stock market closed for 10 years?\n"
             "19. What is the company's intrinsic value?\n"
             "20. Is the stock trading at a meaningful discount to intrinsic value (margin of safety)?"
+            + (WEB_SEARCH_INSTRUCTION if enable_web_search else "")
             + get_language_instruction()
             + get_report_hygiene_instruction(),
         )

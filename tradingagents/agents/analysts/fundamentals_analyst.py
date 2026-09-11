@@ -39,6 +39,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_institutional_13f_filings,
     get_insider_form4_activity,
     get_prospectus_disclosure,
+    web_search,
+    WEB_SEARCH_INSTRUCTION,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -66,7 +68,7 @@ After running each valuation tool, synthesize the results: compare fair value es
 """
 
 
-def create_fundamentals_analyst(llm):
+def create_fundamentals_analyst(llm, enable_web_search=True):
     def fundamentals_analyst_node(state):
         current_date = state["trade_date"]
         instrument_context = build_instrument_context(state["company_of_interest"])
@@ -112,6 +114,8 @@ def create_fundamentals_analyst(llm):
             get_insider_form4_activity,
             get_prospectus_disclosure,
         ] + valuation_tools
+        if enable_web_search:
+            tools.append(web_search)
 
         system_message = (
             "You are a researcher tasked with analyzing fundamental information over the past week about a company. Please write a comprehensive report of the company's fundamental information such as financial documents, company profile, basic company financials, and company financial history to gain a full view of the company's fundamental information to inform traders. Make sure to include as much detail as possible. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
@@ -125,6 +129,7 @@ def create_fundamentals_analyst(llm):
             + " Use `get_institutional_13f_filings` and `get_insider_form4_activity` for raw ownership/insider signals, and `get_prospectus_disclosure` if the company recently filed an S-3/424B (dilution/use of proceeds)."
             + " Not every tool applies to every company — pick the filing signals relevant to this company's sector and capital structure."
             + "\n\n**Valuation hygiene (mandatory):** When a valuation engine prints a ⚠️ QA/sanity warning (e.g. comp-set outlier flag, extreme DCF fair value, >20x spread), surface that warning in your report and treat the flagged output as a bounded estimate, not a precise value. Do NOT silently include a comp-set median you have been told is distorted by hyper-growth peers, and do NOT present a DCF fair value implying >80% downside as if it were settled intrinsic value. Cross-check flagged outputs against EPV, comps, and the business case."
+            + (WEB_SEARCH_INSTRUCTION if enable_web_search else "")
             + get_language_instruction()
             + get_report_hygiene_instruction(),
         )

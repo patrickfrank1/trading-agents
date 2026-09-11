@@ -88,6 +88,10 @@ from tradingagents.agents.utils.filing_signals_tools import (
     get_insider_form4_activity,
     get_prospectus_disclosure,
 )
+from tradingagents.agents.utils.web_search_tools import (
+    web_search,
+    WEB_SEARCH_INSTRUCTION,
+)
 
 
 def get_language_instruction() -> str:

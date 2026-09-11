@@ -6,11 +6,13 @@ from tradingagents.agents.utils.agent_utils import (
     get_news,
     get_institutional_holders,
     get_report_hygiene_instruction,
+    web_search,
+    WEB_SEARCH_INSTRUCTION,
 )
 from tradingagents.dataflows.config import get_config
 
 
-def create_news_analyst(llm):
+def create_news_analyst(llm, enable_web_search=True):
     def news_analyst_node(state):
         current_date = state["trade_date"]
         instrument_context = build_instrument_context(state["company_of_interest"])
@@ -20,9 +22,12 @@ def create_news_analyst(llm):
             get_global_news,
             get_institutional_holders,
         ]
+        if enable_web_search:
+            tools.append(web_search)
 
         system_message = (
             "You are a news researcher tasked with analyzing recent news and trends over the past 30 days. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, and get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news. Also call get_institutional_holders to report top institutional owners and quarter-over-quarter share changes (13F flows) — this shows who is buying or selling during the recent move."
+            + (WEB_SEARCH_INSTRUCTION if enable_web_search else "")
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + get_language_instruction()
             + get_report_hygiene_instruction()

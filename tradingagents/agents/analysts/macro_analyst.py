@@ -3,6 +3,8 @@ from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_language_instruction,
     get_report_hygiene_instruction,
+    web_search,
+    WEB_SEARCH_INSTRUCTION,
 )
 from tradingagents.agents.utils.macro_data_tools import (
     get_cpi_data,
@@ -20,7 +22,7 @@ from tradingagents.dataflows.macro_vendors import (
 )
 
 
-def create_macro_analyst(llm):
+def create_macro_analyst(llm, enable_web_search=True):
 
     def macro_analyst_node(state):
         import os as _os
@@ -47,6 +49,8 @@ def create_macro_analyst(llm):
             get_world_bank_data,
             get_ecb_data,
         ]
+        if enable_web_search:
+            tools.append(web_search)
 
         system_message = (
             "You are a Macroeconomic Analyst tasked with analyzing the current macroeconomic environment and its implications for trading and investment decisions. Your role is to gather and synthesize data on key economic indicators and provide a comprehensive macro outlook.\n\n"
@@ -72,6 +76,7 @@ def create_macro_analyst(llm):
             "10. **Risks to the Outlook**: Identify key risks that could shift the macro landscape (e.g., unexpected inflation data, geopolitical events, policy surprises, commodity shocks).\n\n"
             "Call each tool at least once to gather data before writing your report. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
             + fred_context
+            + (WEB_SEARCH_INSTRUCTION if enable_web_search else "")
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
             + "\n\n**Scope of your FINAL TRANSACTION PROPOSAL:** You see ONLY the macro lens — not the company's fundamentals, balance sheet, news flow, or sentiment. Your proposal must therefore be explicitly CONDITIONAL on the company-specific picture: macro tailwinds alone never justify an unconditional BUY, and macro headwinds alone never justify an unconditional SELL. Phrase the proposal as 'BUY if the company-specific fundamentals/sentiment are not deteriorating' (or the equivalent hedge), so the downstream research team can combine your macro view with the idiosyncratic view rather than reading a siloed BUY/SELL as a final verdict."
             + get_language_instruction()

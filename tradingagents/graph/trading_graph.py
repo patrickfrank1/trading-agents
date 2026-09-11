@@ -97,6 +97,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_form_8k_events,
     get_insider_form4_activity,
     get_prospectus_disclosure,
+    web_search,
 )
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -187,6 +188,7 @@ class TradingAgentsGraph:
             self.tool_nodes,
             self.conditional_logic,
             debate_llms=debate_llms,
+            enable_web_search=self.config.get("enable_web_search", True),
         )
 
         self.propagator = Propagator(
@@ -269,112 +271,108 @@ class TradingAgentsGraph:
 
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         """Create tool nodes for different data sources using abstract methods."""
-        return {
-            "market": ToolNode(
-                [
-                    get_stock_data,
-                    get_indicators,
-                    get_option_greeks,
-                    get_option_positioning,
-                    get_short_interest,
-                ]
-            ),
-            "social": ToolNode(
-                [
-                    # News tools for social media analysis
-                    get_news,
-                ]
-            ),
-            "news": ToolNode(
-                [
-                    # News and insider information
-                    get_news,
-                    get_global_news,
-                    get_insider_transactions,
-                    get_institutional_holders,
-                ]
-            ),
-            "fundamentals": ToolNode(
-                [
-                    # Fundamental analysis tools
-                    get_fundamentals,
-                    get_balance_sheet,
-                    get_cashflow,
-                    get_income_statement,
-                    compute_dcf_analysis,
-                    compute_comps_analysis,
-                    compute_precedent_transactions,
-                    compute_asset_based_valuation,
-                    compute_ddm_valuation,
-                    compute_residual_income_valuation,
-                    compute_lbo_analysis,
-                    compute_vc_valuation,
-                    compute_epv_valuation,
-                    compute_sotp_valuation,
-                    # Equity-intelligence tools that test valuation contradictions
-                    get_analyst_estimates,
-                    get_credit_and_debt_detail,
-                    get_earnings_calendar,
-                    get_capital_allocation_history,
-                    # SEC-filing footnote signals (financial-statement-level)
-                    get_debt_maturity_schedule,
-                    get_off_balance_sheet_arrangements,
-                    get_segment_geographic_reporting,
-                    get_rpo_disaggregation,
-                    get_critical_accounting_estimates,
-                    get_internal_controls,
-                    get_stock_based_compensation,
-                    get_goodwill_intangibles,
-                    get_pension_opeb,
-                    get_uncertain_tax_positions,
-                    get_variable_interest_entities,
-                    get_regulatory_capital,
-                    get_commitments_contingencies,
-                    get_proved_reserves_mine_safety,
-                    get_institutional_13f_filings,
-                    get_insider_form4_activity,
-                    get_prospectus_disclosure,
-                ]
-            ),
-            "macro": ToolNode(
-                [
-                    # Macroeconomic indicators
-                    get_cpi_data,
-                    get_fomc_data,
-                    get_nonfarm_payrolls_data,
-                    # Broad macro market snapshot (Treasury, gold, oil, commodities, housing, breadth)
-                    get_macro_market_data,
-                    # Institutional macro data vendors
-                    get_fred_economic_data,
-                    get_oecd_data,
-                    get_world_bank_data,
-                    get_ecb_data,
-                ]
-            ),
-            "business": ToolNode(
-                [
-                    # Business model and competitive analysis
-                    get_company_profile,
-                    get_sector_performance,
-                    get_peer_comparison,
-                    get_10k_filing,
-                    get_10q_filing,
-                    get_8k_filing,
-                    get_20f_filing,
-                    get_6k_filing,
-                    get_customer_concentration,
-                    get_governance,
-                    # SEC-filing qualitative / governance / event signals
-                    get_risk_factor_changes,
-                    get_legal_proceedings,
-                    get_cybersecurity_disclosure,
-                    get_properties_capacity,
-                    get_proxy_governance,
-                    get_activist_filings,
-                    get_form_8k_events,
-                ]
-            ),
+        tool_lists = {
+            "market": [
+                get_stock_data,
+                get_indicators,
+                get_option_greeks,
+                get_option_positioning,
+                get_short_interest,
+            ],
+            "social": [
+                # News tools for social media analysis
+                get_news,
+            ],
+            "news": [
+                # News and insider information
+                get_news,
+                get_global_news,
+                get_insider_transactions,
+                get_institutional_holders,
+            ],
+            "fundamentals": [
+                # Fundamental analysis tools
+                get_fundamentals,
+                get_balance_sheet,
+                get_cashflow,
+                get_income_statement,
+                compute_dcf_analysis,
+                compute_comps_analysis,
+                compute_precedent_transactions,
+                compute_asset_based_valuation,
+                compute_ddm_valuation,
+                compute_residual_income_valuation,
+                compute_lbo_analysis,
+                compute_vc_valuation,
+                compute_epv_valuation,
+                compute_sotp_valuation,
+                # Equity-intelligence tools that test valuation contradictions
+                get_analyst_estimates,
+                get_credit_and_debt_detail,
+                get_earnings_calendar,
+                get_capital_allocation_history,
+                # SEC-filing footnote signals (financial-statement-level)
+                get_debt_maturity_schedule,
+                get_off_balance_sheet_arrangements,
+                get_segment_geographic_reporting,
+                get_rpo_disaggregation,
+                get_critical_accounting_estimates,
+                get_internal_controls,
+                get_stock_based_compensation,
+                get_goodwill_intangibles,
+                get_pension_opeb,
+                get_uncertain_tax_positions,
+                get_variable_interest_entities,
+                get_regulatory_capital,
+                get_commitments_contingencies,
+                get_proved_reserves_mine_safety,
+                get_institutional_13f_filings,
+                get_insider_form4_activity,
+                get_prospectus_disclosure,
+            ],
+            "macro": [
+                # Macroeconomic indicators
+                get_cpi_data,
+                get_fomc_data,
+                get_nonfarm_payrolls_data,
+                # Broad macro market snapshot (Treasury, gold, oil, commodities, housing, breadth)
+                get_macro_market_data,
+                # Institutional macro data vendors
+                get_fred_economic_data,
+                get_oecd_data,
+                get_world_bank_data,
+                get_ecb_data,
+            ],
+            "business": [
+                # Business model and competitive analysis
+                get_company_profile,
+                get_sector_performance,
+                get_peer_comparison,
+                get_10k_filing,
+                get_10q_filing,
+                get_8k_filing,
+                get_20f_filing,
+                get_6k_filing,
+                get_customer_concentration,
+                get_governance,
+                # SEC-filing qualitative / governance / event signals
+                get_risk_factor_changes,
+                get_legal_proceedings,
+                get_cybersecurity_disclosure,
+                get_properties_capacity,
+                get_proxy_governance,
+                get_activist_filings,
+                get_form_8k_events,
+            ],
         }
+
+        # No-login web search: ad-hoc fallback tool bound by every analyst
+        # when enable_web_search is on (see GraphSetup).
+        if self.config.get("enable_web_search", True):
+            for tools in tool_lists.values():
+                tools.append(web_search)
+
+        return {name: ToolNode(tools) for name, tools in tool_lists.items()}
 
     def _fetch_returns(
         self, ticker: str, trade_date: str, holding_days: int = 5

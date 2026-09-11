@@ -25,6 +25,7 @@ class GraphSetup:
         tool_nodes: Dict[str, ToolNode],
         conditional_logic: ConditionalLogic,
         debate_llms: Optional[Dict[str, Any]] = None,
+        enable_web_search: bool = True,
     ):
         """Initialize with required components.
 
@@ -38,12 +39,15 @@ class GraphSetup:
                 the shared quick_thinking_llm is used. Diversifying the debaters
                 (different temperatures / personas) stops the debate from being
                 one model arguing with itself.
+            enable_web_search: When True, every analyst additionally binds the
+                no-login ``web_search`` fallback tool for ad-hoc queries.
         """
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
         self.conditional_logic = conditional_logic
         self.debate_llms = debate_llms or {}
+        self.enable_web_search = enable_web_search
 
     def _debater_llm(self, key: str) -> Any:
         return self.debate_llms.get(key, self.quick_thinking_llm)
@@ -72,42 +76,48 @@ class GraphSetup:
 
         if "market" in selected_analysts:
             analyst_nodes["market"] = create_market_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm,
+                enable_web_search=self.enable_web_search,
             )
             delete_nodes["market"] = create_msg_delete()
             tool_nodes["market"] = self.tool_nodes["market"]
 
         if "social" in selected_analysts:
             analyst_nodes["social"] = create_social_media_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm,
+                enable_web_search=self.enable_web_search,
             )
             delete_nodes["social"] = create_msg_delete()
             tool_nodes["social"] = self.tool_nodes["social"]
 
         if "news" in selected_analysts:
             analyst_nodes["news"] = create_news_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm,
+                enable_web_search=self.enable_web_search,
             )
             delete_nodes["news"] = create_msg_delete()
             tool_nodes["news"] = self.tool_nodes["news"]
 
         if "fundamentals" in selected_analysts:
             analyst_nodes["fundamentals"] = create_fundamentals_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm,
+                enable_web_search=self.enable_web_search,
             )
             delete_nodes["fundamentals"] = create_msg_delete()
             tool_nodes["fundamentals"] = self.tool_nodes["fundamentals"]
 
         if "macro" in selected_analysts:
             analyst_nodes["macro"] = create_macro_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm,
+                enable_web_search=self.enable_web_search,
             )
             delete_nodes["macro"] = create_msg_delete()
             tool_nodes["macro"] = self.tool_nodes["macro"]
 
         if "business" in selected_analysts:
             analyst_nodes["business"] = create_business_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm,
+                enable_web_search=self.enable_web_search,
             )
             delete_nodes["business"] = create_msg_delete()
             tool_nodes["business"] = self.tool_nodes["business"]

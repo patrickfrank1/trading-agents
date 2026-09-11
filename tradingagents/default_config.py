@@ -67,6 +67,11 @@ DEFAULT_CONFIG = {
     # recycling prior arguments (e.g. re-proposing near-identical collar
     # structures with tweaked strikes).
     "enable_risk_debate_referee": True,
+    # Ad-hoc web search fallback: when True, every analyst additionally
+    # binds a no-login DuckDuckGo search tool (via the 'ddgs' package) for
+    # questions the specialized data tools cannot answer. Set to False to
+    # restrict analysts to their curated vendor tools.
+    "enable_web_search": True,
     "debate_temperatures": {
         "bull": 0.7,
         "bear": 0.3,
