@@ -1,47 +1,45 @@
 #!/usr/bin/env bash
 #
-# bin/run_batch.sh — parallel TradingAgents batch runner over bin/TICKERS.yaml
+# bin/run_batch.sh — sequential TradingAgents batch runner (screen-based)
 #
-# Uses `screen` (detached windows) for parallelization. One controller loop
-# (also in a detached screen session) launches up to -N concurrent per-ticker
-# screen windows. State is persisted to disk so you can pause, resume, stop,
-# and resume after the script or the machine has been killed.
+# Runs every ticker in a YAML file (default: bin/TICKERS.yaml) one at a time,
+# strictly sequentially, inside a single detached `screen` session. You can
+# close your terminal while the batch runs.
+#
+# Reports are written to reports/batch_<YYYYMMDD_HHMMSS>/<TICKER>/ per run.
 #
 # Usage:
-#   bin/run_batch.sh start  [-j N] [-f TICKERS.yaml] [-- ANALYSIS_ARGS...]
-#   bin/run_batch.sh pause
-#   bin/run_batch.sh resume
-#   bin/run_batch.sh status
-#   bin/run_batch.sh stop
-#   bin/run_batch.sh reset [--failed|--all]
-#   bin/run_batch.sh logs TICKER
-#   bin/run_batch.sh attach          # attach to the controller session
+#   bin/run_batch.sh start [options]    start a fresh batch run
+#   bin/run_batch.sh status             show progress
+#   bin/run_batch.sh attach             attach to the screen session (Ctrl-a d to detach)
+#   bin/run_batch.sh stop               kill the batch (current analysis is killed too;
+#                                       its --checkpoint data survives for a manual re-run)
+#
+# Options for start:
+#   -f, --file PATH          Tickers YAML file (default: bin/TICKERS.yaml)
+#       --provider P         LLM provider        (default: deepseek)
+#       --shallow-model M    Quick-thinking model (default: deepseek-flash)
+#       --deep-model M       Deep-thinking model (default: deepseek-flash)
+#       --research-depth D   shallow|medium|deep (default: deep)
+#   -d, --date DATE          Analysis date YYYY-MM-DD (default: none)
+#   -a, --analyst NAME       Analyst to include; repeatable (default: CLI defaults)
+#   -l, --language LANG      Output language (default: CLI default)
+#   -h, --help               Show this help
 #
 # Examples:
-#   # default command (the canonical analysis invocation) with 4 parallel jobs
-#   bin/run_batch.sh start -j 4
+#   bin/run_batch.sh start
+#   bin/run_batch.sh start --provider anthropic --shallow-model claude-haiku-4-5 \
+#       --deep-model claude-opus-4-6 --anthropic-effort high    # (see note below)
+#   bin/run_batch.sh status
 #
-#   # override provider/models — everything after `--` replaces the default
-#   # per-ticker command (the %%TICKER%% placeholder is substituted)
-#   bin/run_batch.sh start -j 8 -- \
-#       uv run tradingagents --non-interactive --checkpoint --ticker %%TICKER%% \
-#           --provider openai --deep-model gpt-4o
+# Note: flags not listed above (e.g. --anthropic-effort) are not supported by
+# this wrapper; run the single-ticker CLI directly for those, or edit the
+# DEFAULTS section of this script.
 #
-# Env:
-#   TA_STATE_DIR   where state/logs live (default: ./.runstate/batch)
-#   TA_SESSION     screen session name   (default: tabatch)
-#
-# Notes:
-#   - The per-ticker command MUST contain the literal %%TICKER%% placeholder;
-#     it is replaced with the ticker symbol when each job is launched. The
-#     ticker is NOT auto-appended, so a custom command without %%TICKER%%
-#     is rejected.
-#   - Completion is detected via a sentinel file written by the wrapper, not
-#     by polling screen exit codes, so state survives controller restarts and
-#     machine crashes (combined with --checkpoint, killed analyses resume).
-#   - After `stop` (or a crash), just run `start` again with no args: it
-#     reuses the persisted -j/-f/command, re-queues any tickers that were
-#     mid-run when killed, and continues. Pass new -j/-f/-- to override.
+# Env overrides:
+#   TA_STATE_DIR   state/logs dir   (default: ./.runstate/batch)
+#   TA_SESSION     screen session   (default: tabatch)
+#   TICKERS_FILE   default tickers file (overridden by -f)
 
 set -euo pipefail
 
@@ -50,396 +48,240 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TICKERS_FILE="${TICKERS_FILE:-$REPO_ROOT/bin/TICKERS.yaml}"
 STATE_DIR="${TA_STATE_DIR:-$REPO_ROOT/.runstate/batch}"
 SESSION="${TA_SESSION:-tabatch}"
-CONCURRENCY="${TA_CONCURRENCY:-4}"
 
-mkdir -p "$STATE_DIR/logs"
+PROVIDER="deepseek"
+SHALLOW_MODEL="deepseek-flash"
+DEEP_MODEL="deepseek-flash"
+RESEARCH_DEPTH="deep"
+DATE_OPT=""
+LANGUAGE_OPT=""
+ANALYSTS=()
 
-# canonical per-ticker command (matches the user's requested invocation).
-# %%TICKER%% is substituted per ticker.
-DEFAULT_CMD=(
-  uv run tradingagents
-  --refresh-rate 0.1
-  --non-interactive
-  --checkpoint
-  --display-report
-  --save
-  --ticker %%TICKER%%
-  --research-depth deep
-  --provider deepseek
-  --shallow-model deepseek-v4-pro
-  --deep-model deepseek-v4-pro
-)
+BATCH_LOG() { echo "$STATE_DIR/batch.log"; }
+STATUS_TSV() { echo "$STATE_DIR/status.tsv"; }
 
 # ---------- helpers ----------
-log()  { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
-die()  { log "ERROR: $*"; exit 1; }
+die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+session_alive() {
+  screen -ls 2>/dev/null | grep -qE "\.${SESSION}\b"
+}
 
 yaml_tickers() {
-  # extract the `tickers:` list entries; robust to leading `- ` / ` - `
+  # print `tickers:` list entries; strips CR, comments, inline values
   awk '
     /^tickers:/ { in_list=1; next }
-    in_list && /^[[:space:]]*-/ { sub(/^[[:space:]]*-[[:space:]]*/,""); print; next }
+    in_list && /^[[:space:]]*-/ { sub(/^[[:space:]]*-[[:space:]]*/,""); sub(/[[:space:]]+$/,""); print; next }
     in_list && NF && !/^[[:space:]]*#/ { in_list=0 }
-  ' "$1"
+  ' "$1" | tr -d '\r'
 }
 
-state_file() { echo "$STATE_DIR/state.tsv"; }
-pause_file() { echo "$STATE_DIR/PAUSE"; }
-stop_file()  { echo "$STATE_DIR/STOP"; }
-
-# state.tsv columns: TICKER \t STATUS \t START_TS \t END_TS
-# STATUS ∈ pending | running | done | failed
-state_init() {
-  local f; f="$(state_file)"
-  [[ -f "$f" ]] && return 0
-  : > "$f"
-  local t
-  for t in $(yaml_tickers "$TICKERS_FILE"); do
-    printf '%s\tpending\t\t\n' "$t" >> "$f"
-  done
-  log "initialized state with $(wc -l < "$f") tickers from $TICKERS_FILE"
+clog() { # controller log: to screen AND batch.log
+  printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a "$(BATCH_LOG)" >&2
 }
 
-state_get() { # ticker -> status
-  awk -F'\t' -v t="$1" '$1==t{print $2; exit}' "$(state_file)"
-}
-state_set() { # ticker status
-  local t="$1" s="$2" tmp
+set_status() { # ticker status [rc]
+  local t="$1" s="$2" rc="${3:-}" tmp
   tmp="$(mktemp)"
-  awk -F'\t' -v t="$t" -v s="$s" -v now="$(date +%s)" '
-    BEGIN{OFS="\t"}
-    $1==t {
-      $2=s
-      if (s=="running") $3=now; else if (s=="done"||s=="failed") $4=now
-      print; next
-    }
-    {print}
-  ' "$(state_file)" > "$tmp" && mv "$tmp" "$(state_file)"
-}
-
-count_status() { awk -F'\t' -v s="$1" '$2==s{n++} END{print n+0}' "$(state_file)"; }
-
-# list of window titles in the controller session (one per line, filtered)
-session_windows() {
-  screen -S "$SESSION" -Q windows 2>/dev/null | tr ' ' '\n' | grep -v '^[0-9*]*$' || true
-}
-
-# how many per-ticker screen windows are currently alive
-running_windows() {
-  session_windows | grep -c "^${SESSION}_ta_" || true
-}
-
-# is a specific ticker's window still alive? (prefix match — screen may append
-# flag chars to the title)
-window_alive() {
-  local win; win="$(win_name "$1")"
-  session_windows | grep -q "^${win}"
-}
-
-# is the controller screen session alive?
-controller_alive() {
-  screen -ls 2>/dev/null | grep -qE "\.${SESSION}\b" || return 1
-}
-
-# per-ticker screen window name
-win_name() { echo "${SESSION}_ta_$(echo "$1" | tr -c 'A-Za-z0-9._-' '_')"; }
-
-# sentinel files for completion detection
-sent_done()   { echo "$STATE_DIR/done/$1"; }
-sent_failed() { echo "$STATE_DIR/failed/$1"; }
-
-# template script (with %%TICKER%% placeholder) and per-ticker job script
-template_file() { echo "$STATE_DIR/cmd_template.sh"; }
-job_script()    { echo "$STATE_DIR/jobs/$1.sh"; }
-wrapper_script(){ echo "$STATE_DIR/wrapper.sh"; }
-
-# Write the wrapper script once (takes ticker as $1). Robust vs. screen's
-# arg-splitting because it's a file, not a `bash -c` string. STATE_DIR and
-# REPO_ROOT are EMBEDDED at generation time, because new screen windows do NOT
-# inherit the controller process's exported environment.
-write_wrapper() {
-  cat > "$(wrapper_script)" <<WRAP
-#!/usr/bin/env bash
-set -u
-ticker="\$1"
-state="$STATE_DIR"
-repo="$REPO_ROOT"
-job="\$state/jobs/\${ticker}.sh"
-log="\$state/logs/\${ticker}.log"
-mkdir -p "\$state/done" "\$state/failed" "\$state/logs"
-rm -f "\$state/done/\$ticker" "\$state/failed/\$ticker"
-cd "\$repo" || { echo 127 > "\$state/failed/\$ticker"; exit 0; }
-bash -- "\$job" > "\$log" 2>&1
-rc=\$?
-if [ "\$rc" -eq 0 ]; then
-  touch "\$state/done/\$ticker"
-else
-  echo "\$rc" > "\$state/failed/\$ticker"
-fi
-WRAP
-  chmod +x "$(wrapper_script)"
-}
-
-# Render the per-ticker job script from the template by substituting %%TICKER%%.
-# Done as a file (not a string) so the user's quoting/`;`/`$$` survive intact.
-render_job_script() {
-  local ticker="$1" tpl job
-  tpl="$(template_file)"; job="$(job_script "$ticker")"
-  mkdir -p "$(dirname "$job")"
-  awk -v t="$ticker" '{gsub(/%%TICKER%%/, t); print}' "$tpl" > "$job"
-}
-
-launch_ticker() {
-  local ticker="$1"
-  local win; win="$(win_name "$ticker")"
-  render_job_script "$ticker"
-  screen -S "$SESSION" -X screen -t "$win" bash "$(wrapper_script)" "$ticker" \
-    || die "failed to spawn screen window for $ticker (is the controller session alive?)"
-  state_set "$ticker" running
-  log "launched $ticker (window: $win)"
-}
-
-reconcile() {
-  # for any ticker marked `running` whose window is gone: decide done/failed
-  local t status
-  while IFS=$'\t' read -r t status _ _; do
-    [[ "$status" == "running" ]] || continue
-    if window_alive "$t"; then
-      continue   # still running
-    fi
-    # window gone — check sentinels
-    if [[ -f "$(sent_done "$t")" ]]; then
-      state_set "$t" done
-      log "$t -> done"
-    elif [[ -f "$(sent_failed "$t")" ]]; then
-      state_set "$t" failed
-      log "$t -> failed (rc=$(cat "$(sent_failed "$t")" 2>/dev/null))"
-    else
-      # crashed without sentinel (e.g. machine power-off) — requeue
-      state_set "$t" pending
-      log "$t -> re-queued (no sentinel found, presumed crashed)"
-    fi
-  done < "$(state_file)"
-}
-
-controller_loop() {
-  trap 'log "controller received signal, exiting"; exit 0' INT TERM
-  local dbg="$STATE_DIR/controller.log"
-  : > "$dbg"
-  dbg() { echo "[$(date +%H:%M:%S)] $*" >> "$dbg"; }
-  while true; do
-    # honor STOP
-    if [[ -f "$(stop_file)" ]]; then
-      log "STOP requested — controller exiting (running ticker jobs continue)"
-      rm -f "$(stop_file)"
-      exit 0
-    fi
-    reconcile
-    dbg "post-reconcile windows='$(session_windows)' running_windows=$(running_windows) pending=$(count_status pending) done=$(count_status done) failed=$(count_status failed)"
-
-    if [[ -f "$(pause_file)" ]]; then
-      sleep 3
-      continue
-    fi
-
-    local running; running="$(running_windows)"
-    local pending; pending="$(count_status pending)"
-
-    if [[ "$pending" -eq 0 ]]; then
-      if [[ "$running" -eq 0 ]]; then
-        log "all tickers processed — controller done"
-        break
-      fi
-      sleep 3
-      continue
-    fi
-
-    while [[ "$running" -lt "$CONCURRENCY" && "$pending" -gt 0 ]]; do
-      # pick the first pending ticker (stable order)
-      local t
-      t="$(awk -F'\t' '$2=="pending"{print $1; exit}' "$(state_file)")"
-      [[ -z "$t" ]] && break
-      launch_ticker "$t"
-      running=$((running+1))
-      pending=$((pending-1))
-      sleep 0.5   # stagger launches a touch
-    done
-
-    sleep 3
-  done
+  awk -F'\t' -v t="$t" -v s="$s" -v rc="$rc" 'BEGIN{OFS="\t"} $1==t{$2=s;$3=rc} {print}' \
+    "$(STATUS_TSV)" > "$tmp" && mv "$tmp" "$(STATUS_TSV)"
 }
 
 # ---------- subcommands ----------
 cmd_start() {
-  local cmd_override=0 j_arg="" f_arg=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -j|--concurrency) j_arg="$2"; shift 2 ;;
-      -f|--file)        f_arg="$2"; shift 2 ;;
-      --)               shift; cmd_override=1; break ;;
-      *) die "start: unknown arg: $1" ;;
+      -f|--file)         TICKERS_FILE="$2"; shift 2 ;;
+      --provider)        PROVIDER="$2"; shift 2 ;;
+      --shallow-model)   SHALLOW_MODEL="$2"; shift 2 ;;
+      --deep-model)      DEEP_MODEL="$2"; shift 2 ;;
+      --research-depth)  RESEARCH_DEPTH="$2"; shift 2 ;;
+      -d|--date)         DATE_OPT="$2"; shift 2 ;;
+      -l|--language)     LANGUAGE_OPT="$2"; shift 2 ;;
+      -a|--analyst)      ANALYSTS+=("$2"); shift 2 ;;
+      -h|--help)         usage; exit 0 ;;
+      *) die "start: unknown option: $1 (see bin/run_batch.sh --help)" ;;
     esac
   done
 
-  if controller_alive; then
-    die "controller session '$SESSION' already running. Use '$0 status' or '$0 stop' first."
-  fi
+  session_alive && die "screen session '$SESSION' is already running — check 'bin/run_batch.sh status' or 'stop' first"
+  [[ -f "$TICKERS_FILE" ]] || die "tickers file not found: $TICKERS_FILE"
 
-  # Reuse persisted config when restarting after a stop/crash, so the user can
-  # just run `start` again without re-specifying -j/-f/--. Explicit flags
-  # override; a prior config.env supplies defaults for anything omitted.
-  if [[ -f "$STATE_DIR/config.env" ]]; then
-    # shellcheck disable=SC1090
-    source "$STATE_DIR/config.env"
-  fi
-  [[ -n "$j_arg" ]] && CONCURRENCY="$j_arg"
-  [[ -n "$f_arg" ]] && TICKERS_FILE="$f_arg"
+  local tickers_list
+  tickers_list="$(yaml_tickers "$TICKERS_FILE")"
+  [[ -n "$tickers_list" ]] || die "no tickers found under 'tickers:' in $TICKERS_FILE"
 
-  # Build the per-ticker command template. If a template already exists and the
-  # user did not pass `--`, reuse it (preserves a custom command across restarts).
-  local tpl; tpl="$(template_file)"
-  if [[ "$cmd_override" -eq 1 ]]; then
-    [[ "$*" == *"%%TICKER%%"* ]] || die "custom command must contain the %%TICKER%% placeholder"
-    : > "$tpl"
-    local a
-    for a in "$@"; do printf '%q ' "$a" >> "$tpl"; done
-    echo >> "$tpl"
-  elif [[ ! -f "$tpl" ]]; then
-    # first run with no custom command → write the default
-    { for a in "${DEFAULT_CMD[@]}"; do printf '%q ' "$a"; done; echo; } > "$tpl"
-  fi
+  # fresh run: wipe previous state
+  rm -rf "$STATE_DIR"
+  mkdir -p "$STATE_DIR/logs"
 
-  # (re)persist config so the controller reads the resolved values
-  cat > "$STATE_DIR/config.env" <<EOF
-REPO_ROOT='$REPO_ROOT'
-TICKERS_FILE='$TICKERS_FILE'
-STATE_DIR='$STATE_DIR'
-SESSION='$SESSION'
-CONCURRENCY=$CONCURRENCY
-EOF
+  local run_dir="$REPO_ROOT/reports/batch_$(date +%Y%m%d_%H%M%S)"
+  mkdir -p "$run_dir"
 
-  state_init
-  write_wrapper
+  # persist config for the controller (screen does not inherit our shell vars)
+  {
+    printf "REPO_ROOT=%q\n" "$REPO_ROOT"
+    printf "TICKERS_FILE=%q\n" "$TICKERS_FILE"
+    printf "RUN_DIR=%q\n" "$run_dir"
+    printf "PROVIDER=%q\n" "$PROVIDER"
+    printf "SHALLOW_MODEL=%q\n" "$SHALLOW_MODEL"
+    printf "DEEP_MODEL=%q\n" "$DEEP_MODEL"
+    printf "RESEARCH_DEPTH=%q\n" "$RESEARCH_DEPTH"
+    printf "DATE_OPT=%q\n" "$DATE_OPT"
+    printf "LANGUAGE_OPT=%q\n" "$LANGUAGE_OPT"
+    if [[ ${#ANALYSTS[@]} -gt 0 ]]; then
+      printf "ANALYSTS=(%s)\n" "$(printf '%q ' "${ANALYSTS[@]}")"
+    else
+      printf "ANALYSTS=()\n"
+    fi
+  } > "$STATE_DIR/run.conf"
 
-  log "starting controller: concurrency=$CONCURRENCY, tickers=$TICKERS_FILE"
-  log "per-ticker template: $tpl"
-  screen -dmS "$SESSION" bash -c "
-    set -e
-    source '$STATE_DIR/config.env'
-    cd \"\$REPO_ROOT\"
-    exec '$0' _controller
-  "
+  printf '%s\n' "$tickers_list" > "$STATE_DIR/tickers.txt"
+  awk '{printf "%s\tpending\t\n", $0}' "$STATE_DIR/tickers.txt" > "$(STATUS_TSV)"
+
+  local n; n="$(wc -l < "$STATE_DIR/tickers.txt")"
+  screen -dmS "$SESSION" bash "$0" _controller
+
   sleep 1
-  if controller_alive; then
-    log "controller session '$SESSION' started. Attach with: $0 attach"
-  else
-    die "failed to start controller session"
+  if ! session_alive; then
+    die "failed to start screen session '$SESSION' (check $STATE_DIR/batch.log)"
   fi
+
+  printf 'Batch started: %s ticker(s) from %s\n' "$n" "$TICKERS_FILE"
+  printf '  screen session : %s (attach: bin/run_batch.sh attach)\n' "$SESSION"
+  printf '  reports        : %s\n' "$run_dir"
+  printf '  status         : bin/run_batch.sh status\n'
+  printf '  live log       : tail -f %s\n' "$(BATCH_LOG)"
 }
 
-# invoked internally by cmd_start via screen
 cmd__controller() {
+  [[ -f "$STATE_DIR/run.conf" ]] || die "no run.conf in $STATE_DIR — use 'bin/run_batch.sh start' first"
   # shellcheck disable=SC1090
-  source "$STATE_DIR/config.env"
-  export REPO_ROOT TICKERS_FILE STATE_DIR SESSION CONCURRENCY
-  write_wrapper   # ensure it exists / is up to date
-  controller_loop
-}
+  source "$STATE_DIR/run.conf"
+  cd "$REPO_ROOT"
 
-cmd_pause()  { touch "$(pause_file)";  log "paused — running jobs finish, no new ones launched"; }
-cmd_resume() { rm -f "$(pause_file)";  log "resumed — new jobs will be launched as slots free up"; }
+  : > "$(BATCH_LOG)"
+  clog "=== batch run started ==="
+  clog "tickers_file=$TICKERS_FILE  reports=$RUN_DIR"
+  clog "provider=$PROVIDER shallow=$SHALLOW_MODEL deep=$DEEP_MODEL depth=$RESEARCH_DEPTH"
 
-cmd_stop() {
-  rm -f "$(pause_file)"
-  touch "$(stop_file)"
-  log "stop requested — controller will exit after current poll"
-  # give the controller a moment to notice, then tear down the whole session.
-  # running ticker jobs are killed; --checkpoint lets them resume on next start.
-  sleep 2
-  if controller_alive; then
-    screen -S "$SESSION" -X quit 2>/dev/null || true
-  fi
-  rm -f "$(stop_file)"
-  log "stopped. Re-run with: $0 start"
+  local total=0 n=0 done_ct=0 failed_ct=0 rc t tlog
+  total="$(grep -c . "$STATE_DIR/tickers.txt" || true)"
+
+  while IFS= read -r t; do
+    [[ -z "$t" ]] && continue
+    n=$((n + 1))
+    set_status "$t" running
+    tlog="$STATE_DIR/logs/$t.log"
+
+    local cmd=(
+      uv run tradingagents
+      --refresh-rate 0.1
+      --non-interactive
+      --checkpoint
+      --display-report
+      --save
+      --ticker "$t"
+      --save-path "$RUN_DIR/$t"
+      --research-depth "$RESEARCH_DEPTH"
+      --provider "$PROVIDER"
+      --shallow-model "$SHALLOW_MODEL"
+      --deep-model "$DEEP_MODEL"
+    )
+    [[ -n "$DATE_OPT" ]] && cmd+=(--date "$DATE_OPT")
+    [[ -n "$LANGUAGE_OPT" ]] && cmd+=(--language "$LANGUAGE_OPT")
+    local a
+    if [[ ${#ANALYSTS[@]} -gt 0 ]]; then
+      for a in "${ANALYSTS[@]}"; do cmd+=(--analyst "$a"); done
+    fi
+
+    clog "[$n/$total] $t: starting"
+    printf '%q ' "${cmd[@]}" > "$STATE_DIR/last_cmd.txt"; echo >> "$STATE_DIR/last_cmd.txt"
+
+    # run synchronously: wait for completion before the next ticker
+    # (if-condition suppresses errexit so a failing ticker doesn't kill the batch)
+    if "${cmd[@]}" 2>&1 | tee "$tlog"; then
+      rc=0
+    else
+      rc=${PIPESTATUS[0]}
+    fi
+
+    if [[ "$rc" -eq 0 ]]; then
+      set_status "$t" done 0
+      done_ct=$((done_ct + 1))
+      clog "[$n/$total] $t: done (rc=0)"
+    else
+      set_status "$t" failed "$rc"
+      failed_ct=$((failed_ct + 1))
+      clog "[$n/$total] $t: FAILED (rc=$rc) — continuing with next ticker"
+    fi
+  done < "$STATE_DIR/tickers.txt"
+
+  clog "=== batch finished: total=$total done=$done_ct failed=$failed_ct ==="
+  clog "reports: $RUN_DIR"
 }
 
 cmd_status() {
-  # load persisted concurrency if available so status reflects the running run
-  if [[ -f "$STATE_DIR/config.env" ]]; then
-    # shellcheck disable=SC1090
-    source "$STATE_DIR/config.env"
+  if session_alive; then
+    echo "session : RUNNING (screen '$SESSION')"
+  else
+    echo "session : STOPPED"
   fi
-  if controller_alive; then echo "controller: RUNNING (session $SESSION)"; else echo "controller: STOPPED"; fi
-  [[ -f "$(pause_file)" ]] && echo "state: PAUSED" || echo "state: ACTIVE"
-  echo "concurrency: $CONCURRENCY  (live windows: $(running_windows))"
+
+  if [[ ! -f "$(STATUS_TSV)" ]]; then
+    echo "state   : no batch run found in $STATE_DIR (use 'bin/run_batch.sh start')"
+    return 0
+  fi
+  # shellcheck disable=SC1090
+  [[ -f "$STATE_DIR/run.conf" ]] && source "$STATE_DIR/run.conf"
+  [[ -n "${RUN_DIR:-}" ]] && echo "reports : $RUN_DIR"
+
+  local done_ct failed_ct running pending total
+  total=$(grep -c . "$(STATUS_TSV)")
+  done_ct=$(awk -F'\t' '$2=="done"{c++} END{print c+0}' "$(STATUS_TSV)")
+  failed_ct=$(awk -F'\t' '$2=="failed"{c++} END{print c+0}' "$(STATUS_TSV)")
+  running=$(awk -F'\t' '$2=="running"{print $1}' "$(STATUS_TSV)")
+  pending=$(awk -F'\t' '$2=="pending"{c++} END{print c+0}' "$(STATUS_TSV)")
+
   echo
-  printf '%-12s %8s %12s %12s\n' STATUS COUNT PCT SUMMARY
-  local total done failed pending running
-  total=$(wc -l < "$(state_file)")
-  done=$(count_status done); failed=$(count_status failed)
-  pending=$(count_status pending); running=$(count_status running)
-  local pct=0; [[ "$total" -gt 0 ]] && pct=$(( (done*100) / total ))
-  printf '%-12s %8s %12s\n' "done"    "$done"    "$pct%"
-  printf '%-12s %8s\n'         "failed"  "$failed"
-  printf '%-12s %8s\n'         "running" "$running"
-  printf '%-12s %8s\n'         "pending" "$pending"
-  echo "------------------------------------"
-  printf '%-12s %8s\n'         "total"   "$total"
+  printf '%-10s %5s\n' STATUS COUNT
+  printf '%-10s %5s\n' done "$done_ct"
+  printf '%-10s %5s\n' failed "$failed_ct"
+  printf '%-10s %5s\n' pending "$pending"
+  printf '%-10s %5s\n' total "$total"
+
+  [[ -n "$running" ]] && echo "current  : $running" || true
+
+  if [[ "$failed_ct" -gt 0 ]]; then
+    echo "failed   :"
+    awk -F'\t' '$2=="failed"{printf "  %s (rc=%s)\n", $1, $3}' "$(STATUS_TSV)"
+  fi
+
   echo
-  if [[ "$failed" -gt 0 ]]; then
-    echo "Failed tickers:"
-    awk -F'\t' '$2=="failed"{print "  "$1}' "$(state_file)"
-    echo "  (requeue with: $0 reset --failed)"
+  echo "live log : tail -f $(BATCH_LOG)"
+  echo "per-tkr  : tail -f $STATE_DIR/logs/<TICKER>.log"
+}
+
+cmd_stop() {
+  if ! session_alive; then
+    echo "session '$SESSION' is not running."
+    return 0
   fi
+  screen -S "$SESSION" -X quit 2>/dev/null || true
+  echo "batch stopped."
+  echo "The analysis that was in flight was killed; its --checkpoint data survives,"
+  echo "so you can re-run that single ticker manually to resume it."
 }
 
-cmd_reset() {
-  local mode="${1:-failed}"
-  if controller_alive; then
-    die "controller is running — stop it first: $0 stop"
-  fi
-  case "$mode" in
-    --failed)
-      awk -F'\t' '$2=="failed"{print $1}' "$(state_file)" | while read -r t; do
-        state_set "$t" pending; rm -f "$(sent_failed "$t")"
-      done
-      log "re-queued all failed tickers"
-      ;;
-    --all)
-      rm -f "$(state_file)"
-      rm -rf "$STATE_DIR/done" "$STATE_DIR/failed" "$STATE_DIR/logs"
-      mkdir -p "$STATE_DIR/logs"
-      state_init
-      log "reset entire state to pending"
-      ;;
-    *) die "reset: unknown mode '$mode' (use --failed or --all)" ;;
-  esac
-}
-
-cmd_logs() {
-  local t="$1"
-  local f="$STATE_DIR/logs/$t.log"
-  [[ -f "$f" ]] || die "no log for $t at $f"
-  tail -n 200 -f "$f"
-}
-
-cmd_attach() {
-  screen -r "$SESSION"
-}
+usage() { sed -n '2,32p' "$0"; }
 
 # ---------- dispatch ----------
 case "${1:-}" in
   start)       shift; cmd_start "$@" ;;
   _controller) cmd__controller ;;
-  pause)       cmd_pause ;;
-  resume)      cmd_resume ;;
   status)      cmd_status ;;
+  attach)      exec screen -r "$SESSION" ;;
   stop)        cmd_stop ;;
-  reset)       shift; cmd_reset "${1:-failed}" ;;
-  logs)        shift; cmd_logs "${1:-}" ;;
-  attach)      cmd_attach ;;
-  ""|-h|--help|help)
-    sed -n '2,40p' "$0"
-    ;;
-  *) die "unknown subcommand: $1" ;;
+  ""|-h|--help|help) usage ;;
+  *) die "unknown subcommand: $1 (see bin/run_batch.sh --help)" ;;
 esac
