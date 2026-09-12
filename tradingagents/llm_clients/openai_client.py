@@ -33,9 +33,18 @@ class NormalizedChatOpenAI(ChatOpenAI):
         serialization, so it is the cleaner choice for our combination of
         use_responses_api=True + with_structured_output. Both paths use OpenAI's
         strict mode and produce the same typed Pydantic instance.
+
+        DeepSeek/GLM/Qwen endpoints run thinking-mode models that reject a
+        forced tool_choice ("Thinking mode does not support this tool_choice")
+        and do not offer json_schema response_format, so we fall back to
+        tool_choice="auto" and rely on the prompt to elicit the tool call.
         """
         if method is None:
             method = "function_calling"
+        if method == "function_calling" and "tool_choice" not in kwargs:
+            base_url = str(self.openai_api_base or "")
+            if any(host in base_url for host in _THINKING_TOOL_CHOICE_HOSTS):
+                kwargs["tool_choice"] = "auto"
         return super().with_structured_output(schema, method=method, **kwargs)
 
     def _create_chat_result(self, response, generation_info=None):
@@ -89,6 +98,9 @@ _PASSTHROUGH_KWARGS = (
     "timeout", "max_retries", "reasoning_effort", "temperature",
     "api_key", "callbacks", "http_client", "http_async_client",
 )
+
+# Providers whose thinking-mode models reject a forced tool_choice
+_THINKING_TOOL_CHOICE_HOSTS = ("api.deepseek.com", "api.z.ai", "dashscope")
 
 # Provider base URLs and API key env vars
 _PROVIDER_CONFIG = {
