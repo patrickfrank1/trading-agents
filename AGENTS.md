@@ -36,6 +36,10 @@ OPENAI_API_KEY=... uv run python scripts/smoke_structured_output.py openai
 docker compose run --rm tradingagents
 ```
 
+## opencode agents / commands
+
+- `/compare-stocks <reports-dir>` — runs the `portfolio-comparison` agent (`.opencode/agent/portfolio-comparison.md`): reads `5_portfolio/decision.md` from every report dir under the given directory (handles `run_*`/`batch_*`/`archive` groupings, latest report per ticker wins), ranks equities by investability, treats ETFs as baselines, and writes `reports/portfolio_comparison_<scope>_<YYYYMMDD>.md` with buy/sell answers, NAV weightings, top-2 risks/opportunities, and 1Y/5Y expected returns per stock.
+
 No linter, typechecker, or formatter is configured in the project.
 
 - **LLM-friendly docs**: if the `context7` MCP server is available, additional documentation for this project lives under the `tradingagents` context7 source. Use it when you need deeper reference material on agents, schemas, or the LangGraph pipeline.
