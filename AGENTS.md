@@ -38,7 +38,7 @@ docker compose run --rm tradingagents
 
 ## opencode agents / commands
 
-- `/compare-stocks <reports-dir>` — runs the `portfolio-comparison` agent (`.opencode/agent/portfolio-comparison.md`): reads `5_portfolio/decision.md` from every report dir under the given directory (handles `run_*`/`batch_*`/`archive` groupings, latest report per ticker wins), ranks equities by investability, treats ETFs as baselines, and writes `reports/portfolio_comparison_<scope>_<YYYYMMDD>.md` with buy/sell answers, NAV weightings, top-2 risks/opportunities, and 1Y/5Y expected returns per stock.
+- `/compare-stocks <reports-dir>` — runs the `portfolio-comparison` agent (`.opencode/agent/portfolio-comparison.md`): reads `5_portfolio/decision.md` from every report dir under the given directory (handles `run_*`/`batch_*`/`archive` groupings, latest report per ticker wins), ranks equities by investability, treats ETFs as baselines, sizes positions via a fractional-Kelly criterion from each stock's scenario table (trend/probability-of-gain dominates, expected return scales magnitude), and writes `reports/portfolio_comparison_<scope>_<YYYYMMDD>.md` with buy/sell answers, Kelly-derived NAV weightings, top-2 risks/opportunities, and 1Y/5Y expected returns per stock.
 
 No linter, typechecker, or formatter is configured in the project.
 

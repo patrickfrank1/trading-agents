@@ -71,13 +71,30 @@ Rank all **equities** from best to worst investment opportunity. The ranking is 
 - **Hold / Monitor** — HOLD; keep existing positions only, watch the stated triggers.
 - **Reduce / Avoid** — UNDERWEIGHT/SELL or dominant structural risks.
 
-## Step 4 — Build the Portfolio Weighting
+## Step 4 — Build the Portfolio Weighting (Kelly Criterion)
 
-For the Core Buy and Accumulate-on-Weakness names, propose a total-portfolio allocation:
+Size positions with a fractional-Kelly framework computed from each stock's own scenario table. The Kelly fraction naturally encodes both requirements: **trend** (probability that the return is positive) dominates inclusion and sizing; **magnitude** (expected return and win/loss payoff ratio) scales size proportionally within included names. Trend always outweighs magnitude — a high-upside name with <50% probability of a positive return gets less weight than a modest-upside name with high win probability.
 
-- Start from each PM's own target weight (NAV %) and reconcile them so equities + baseline exposure + cash ≤ 100% of NAV. Scale proportionally when PM weights sum above 100%.
-- Reflect ranking order in sizing: a top-ranked name gets the top of its PM range; lower-ranked or weaker-conviction names get the bottom of their range or zero.
-- Names rated BUY/OVERWEIGHT but with "0% at current price / buy on weakness" get a **conditional** weight: "0% now, up to X% if price enters <zone>".
+For each candidate stock, derive from its scenario table (bull/base/bear probabilities and price targets):
+
+1. **p = P(positive return)** = sum of scenario probabilities whose price target exceeds the current price. (e.g. bull 30% → +25%, base 50% → +8%, bear 20% → −15% ⇒ p = 0.80.)
+2. **avg_win** = probability-weighted average upside % of the winning scenarios; **avg_loss** = probability-weighted average loss % of the losing scenarios (absolute value). Payoff ratio **b = avg_win / avg_loss**.
+3. **Full Kelly fraction:** f* = p − (1 − p)/b.
+4. **Fractional Kelly (use 1/4):** f = f* / 4. Single-stock edges are estimated from LLM-generated scenario tables, so over-betting is the dominant failure mode. State both f* and the adopted f in the working notes.
+5. **Gates (applied in order — these are the "trend is more important" rules):**
+   - If expected 1Y return ≤ 0 or the PM rating is UNDERWEIGHT/SELL ⇒ f = 0 (do not bet; list as Reduce/Avoid).
+   - If p < 0.5 ⇒ f = 0 regardless of upside magnitude (no positive-trend conviction ⇒ no position).
+   - If the PM requires entry-zone gating ("do not buy at current price") ⇒ the computed f is a **conditional** weight, deployable only in the stated zone — not a current allocation.
+   - If the PM says 0% new capital (HOLD) ⇒ current weight 0; the computed f may be shown as the gated/conditional size.
+6. **Scale and cap:**
+   - Cap each f at the PM's own maximum target weight (the PM's risk work overrides pure Kelly when more conservative).
+   - Hard cap any single name at 8% NAV.
+   - Scale all weights by a common factor so that total deployed equity ≤ 55% NAV; the residual is **cash**, explicitly stated with its deployment triggers.
+   - Re-check diversification: if any single theme/sector/currency exceeds ~35% of deployed equity after Kelly sizing, trim the excess proportionally and note it.
+7. **Non-linear check:** weights must be monotonic in (p, expected return) in that order — a name with higher p but lower expected return must receive ≥ the weight of a name with lower p; when p is equal, higher expected return wins. If the PM cap binds and distorts this, say so explicitly.
+
+Show the Kelly computation transparently in the report (a table: Ticker | p | avg_win | avg_loss | b | f* | adopted f | PM cap | final weight) so the weighting is auditable, then present the final allocation table. Names with f = 0 but positive thesis (HOLDs) appear in the conditional/gated section with their zone triggers.
+
 - HOLD names: state "maintain existing position; no new capital".
 - Explicitly state the residual **cash %** and what event would deploy it.
 
@@ -114,8 +131,8 @@ For each equity (best first):
 - **Execution:** entry zone, stop, first target, catalyst date.
 - **Weight:** proposed NAV % (or conditional weight), from PM target reconciled to portfolio.
 
-## 4. Portfolio Allocation Summary
-Table: Ticker | Tier | Proposed Weight | Conditional Trigger. Plus cash and deployment triggers.
+## 4. Portfolio Allocation Summary (Kelly-based)
+Kelly computation table: Ticker | p (P of positive return) | avg win % | avg loss % | b (payoff) | f* (full Kelly) | f (adopted 1/4 Kelly) | PM cap | Final Weight | Status (deploy now / gated / 0). Then the final allocation table: Ticker | Tier | Proposed Weight | Conditional Trigger, plus cash and deployment triggers, and the monotonicity/diversification check results.
 
 ## 5. ETF Baseline
 Per Step 5.
@@ -133,5 +150,6 @@ Per Step 5.
 - Every number traces to a report file. Missing → `—`, never invented.
 - The ranking is internally consistent: a lower-ranked name must not strictly dominate a higher-ranked one on rating + expected return + risk; if it does, fix the ranking or explain the tension.
 - Proposed weights sum (equities + cash) to ≤ 100% NAV.
+- Kelly discipline holds: no weight on any name with p < 0.5 or ≤0 expected return; weights are monotonic in (p, expected return) subject to stated PM caps; every deployed weight equals min(1/4-Kelly, PM cap, 8%) × common scaling factor and the scaling is shown.
 - Every ranked equity has exactly ≤2 risks and ≤2 opportunities listed.
 - 5Y returns: never present a fabricated number — either derive it transparently from report data or mark it not determinable.
