@@ -32,6 +32,7 @@ dependencies = [
     "yfinance>=0.2.63",
     "fredapi>=0.5.1",
     "ddgs>=9.0.0",
+    "typesafe-sdk>=0.7.0",
 ]
 
 [project.scripts]

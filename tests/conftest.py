@@ -29,6 +29,10 @@ _API_KEY_ENV_VARS = (
 def _dummy_api_keys(monkeypatch):
     for env_var in _API_KEY_ENV_VARS:
         monkeypatch.setenv(env_var, os.environ.get(env_var, "placeholder"))
+    # The Jev decision tool is enabled by default. Clear any real key so unit
+    # tests never reach the network; tests that need Jev inject a fake client
+    # or monkeypatch assess_with_jev directly.
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
 
 
 @pytest.fixture()

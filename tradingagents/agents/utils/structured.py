@@ -51,6 +51,7 @@ def invoke_structured_or_freetext(
     prompt: Any,
     render: Callable[[T], str],
     agent_name: str,
+    mutate: Optional[Callable[[T], T]] = None,
 ) -> str:
     """Run the structured call and render to markdown; fall back to free-text on any failure.
 
@@ -58,10 +59,16 @@ def invoke_structured_or_freetext(
     invocations, a list of message dicts for chat models that take that
     shape). The same value is forwarded to the free-text path so the
     fallback sees the same input the structured call did.
+
+    ``mutate`` is an optional hook applied to the parsed Pydantic instance
+    before rendering. The Portfolio Manager uses it to let the Jev decision
+    tool override the final rating deterministically.
     """
     if structured_llm is not None:
         try:
             result = structured_llm.invoke(prompt)
+            if mutate is not None:
+                result = mutate(result)
             return render(result)
         except Exception as exc:
             logger.warning(

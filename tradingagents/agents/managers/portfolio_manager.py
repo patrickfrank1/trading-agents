@@ -6,6 +6,13 @@ back to markdown for storage in ``final_trade_decision`` so memory log,
 CLI display, and saved reports continue to consume the same shape they do
 today.  When a provider does not expose structured output, the agent falls
 back gracefully to free-text generation.
+
+Before deciding, the PM always queries the Jev decision tool
+(``agents.utils.jev``) with the collected facts and analyst reports. Jev
+returns an intrinsic-value estimate with a low/high interval, a target
+allocation, and a 5-tier rating; its rating deterministically drives the
+final decision and its rendered output is appended to the decision markdown.
+When Jev is unavailable the existing LLM-only path runs unchanged.
 """
 
 from __future__ import annotations
@@ -19,13 +26,19 @@ from tradingagents.agents.utils.agent_utils import (
     get_report_hygiene_instruction,
     get_reports_digest,
 )
+from tradingagents.agents.utils.jev import assess_with_jev, render_jev_assessment
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
 )
 
 
-def create_portfolio_manager(llm):
+def create_portfolio_manager(
+    llm,
+    jev_enabled: bool = True,
+    jev_model: str = "jev-latest",
+    jev_max_state_chars: int = 24000,
+):
     structured_llm = bind_structured(llm, PortfolioDecision, "Portfolio Manager")
 
     def portfolio_manager_node(state) -> dict:
@@ -47,13 +60,41 @@ def create_portfolio_manager(llm):
         reports_digest = get_reports_digest(state)
         claim_audit_block = get_claim_audit_block(state)
 
+        # Mandatory Jev decision tool: hand Jev the collected facts and analyst
+        # reports, then use its intrinsic-value / allocation / rating output to
+        # drive the final decision. Degrades to the LLM-only path on failure.
+        jev_assessment = None
+        if jev_enabled:
+            jev_assessment = assess_with_jev(
+                state,
+                model=jev_model,
+                max_state_chars=jev_max_state_chars,
+            )
+        jev_block = render_jev_assessment(jev_assessment) if jev_assessment else ""
+        jev_context = (
+            "**Jev Decision Tool output (authoritative for rating and allocation):**\n"
+            f"{jev_block}\n"
+            if jev_block
+            else ""
+        )
+        jev_instruction = (
+            "The Jev Decision Tool output above is authoritative: use its rating "
+            "verbatim as the final rating and its target allocation verbatim in the "
+            "trade ticket. Build the thesis, scenarios, and sizing around Jev's "
+            "intrinsic value and confidence interval. If your own weighted score "
+            "implies a different band, Jev governs — explain the tool's output "
+            "rather than overriding it.\n\n"
+            if jev_block
+            else ""
+        )
+
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
 {instrument_context}
 
 ---
 
-**Rating Scale** (use exactly one):
+{jev_context}{jev_instruction}**Rating Scale** (use exactly one):
 - **Buy**: Strong conviction to enter or add to position
 - **Overweight**: Favorable outlook, gradually increase exposure
 - **Hold**: Maintain current position, no action needed
@@ -101,13 +142,24 @@ Provide a concise summary of the key drivers behind your final decision, then de
 
 Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}{get_report_hygiene_instruction()}"""
 
+        def _apply_jev(decision: PortfolioDecision) -> PortfolioDecision:
+            # The Jev decision tool is authoritative for the rating; override
+            # whatever the LLM produced so the final decision deterministically
+            # reflects the tool.
+            if jev_assessment is not None:
+                decision.rating = jev_assessment.rating
+            return decision
+
         final_trade_decision = invoke_structured_or_freetext(
             structured_llm,
             llm,
             prompt,
             render_pm_decision,
             "Portfolio Manager",
+            mutate=_apply_jev,
         )
+        if jev_block:
+            final_trade_decision = f"{final_trade_decision}\n\n{jev_block}"
 
         new_risk_debate_state = {
             "judge_decision": final_trade_decision,

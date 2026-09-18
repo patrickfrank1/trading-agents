@@ -67,6 +67,19 @@ DEFAULT_CONFIG = {
     # recycling prior arguments (e.g. re-proposing near-identical collar
     # structures with tweaked strikes).
     "enable_risk_debate_referee": True,
+    # Jev decision tool (TypeSafe AI's System One model). When enabled, the
+    # Portfolio Manager always hands the canonical facts + analyst reports to
+    # Jev, which returns an intrinsic-value band (with low/high confidence
+    # bounds), a target portfolio allocation, and a 5-tier rating. Jev's
+    # rating drives the final decision. Requires TYPESAFE_API_KEY; when the
+    # key is absent or the call fails, the PM degrades gracefully to the
+    # existing LLM-only decision path.
+    "enable_jev_decision": True,
+    "jev_model": "jev-latest",
+    # Cap on how many characters of analyst reports are sent to Jev as state
+    # (context rot hurts classification accuracy). Canonical facts are always
+    # included in full.
+    "jev_max_state_chars": 24000,
     # Ad-hoc web search fallback: when True, every analyst additionally
     # binds a no-login DuckDuckGo search tool (via the 'ddgs' package) for
     # questions the specialized data tools cannot answer. Set to False to

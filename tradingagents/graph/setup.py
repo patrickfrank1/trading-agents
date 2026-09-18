@@ -26,6 +26,9 @@ class GraphSetup:
         conditional_logic: ConditionalLogic,
         debate_llms: Optional[Dict[str, Any]] = None,
         enable_web_search: bool = True,
+        jev_enabled: bool = True,
+        jev_model: str = "jev-latest",
+        jev_max_state_chars: int = 24000,
     ):
         """Initialize with required components.
 
@@ -41,6 +44,10 @@ class GraphSetup:
                 one model arguing with itself.
             enable_web_search: When True, every analyst additionally binds the
                 no-login ``web_search`` fallback tool for ad-hoc queries.
+            jev_enabled: When True, the Portfolio Manager always queries the
+                Jev decision tool with the collected facts before deciding.
+            jev_model: Jev model alias/version to pin.
+            jev_max_state_chars: Cap on analyst-report characters sent to Jev.
         """
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
@@ -48,6 +55,9 @@ class GraphSetup:
         self.conditional_logic = conditional_logic
         self.debate_llms = debate_llms or {}
         self.enable_web_search = enable_web_search
+        self.jev_enabled = jev_enabled
+        self.jev_model = jev_model
+        self.jev_max_state_chars = jev_max_state_chars
 
     def _debater_llm(self, key: str) -> Any:
         return self.debate_llms.get(key, self.quick_thinking_llm)
@@ -159,7 +169,12 @@ class GraphSetup:
         aggressive_analyst = create_aggressive_debator(self._debater_llm("aggressive"))
         neutral_analyst = create_neutral_debator(self._debater_llm("neutral"))
         conservative_analyst = create_conservative_debator(self._debater_llm("conservative"))
-        portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
+        portfolio_manager_node = create_portfolio_manager(
+            self.deep_thinking_llm,
+            jev_enabled=self.jev_enabled,
+            jev_model=self.jev_model,
+            jev_max_state_chars=self.jev_max_state_chars,
+        )
 
         # Create workflow
         workflow = StateGraph(AgentState)

@@ -194,6 +194,9 @@ class TradingAgentsGraph:
             self.conditional_logic,
             debate_llms=debate_llms,
             enable_web_search=self.config.get("enable_web_search", True),
+            jev_enabled=self.config.get("enable_jev_decision", True),
+            jev_model=self.config.get("jev_model", "jev-latest"),
+            jev_max_state_chars=self.config.get("jev_max_state_chars", 24000),
         )
 
         self.propagator = Propagator(
