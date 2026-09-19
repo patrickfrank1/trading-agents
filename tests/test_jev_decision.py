@@ -7,9 +7,11 @@ import pytest
 from tradingagents.agents.managers.portfolio_manager import create_portfolio_manager
 from tradingagents.agents.schemas import PortfolioDecision, PortfolioRating
 from tradingagents.agents.utils.jev import (
+    JEV_PRECEDENCE_CONFIDENCE,
     JevAssessment,
     assess_with_jev,
     extract_current_price,
+    jev_takes_precedence,
     render_jev_assessment,
 )
 
@@ -75,6 +77,54 @@ class TestExtractCurrentPrice:
 
     def test_generic_dollar_amount(self):
         assert extract_current_price({"market_report": "Shares trade at $42.50 today."}) == 42.5
+
+    def test_facts_snapshot_wins_over_reports(self):
+        state = {
+            "facts_snapshot": "Price: $43.07 (close 2026-09-11).",
+            "fundamentals_report": "Current Price: $44.00.",
+        }
+        assert extract_current_price(state) == 43.07
+
+    def test_does_not_mistake_last_close_date_for_price(self):
+        state = {"facts_snapshot": "Price: $495.63 (last close 2026-09-11)."}
+        assert extract_current_price(state) == 495.63
+
+    def test_hong_kong_and_euro_prices(self):
+        assert extract_current_price(
+            {"facts_snapshot": "Price: HK$75.10 (last close 2026-09-11; used 2026-09-12)."}
+        ) == 75.1
+        assert extract_current_price(
+            {"facts_snapshot": "Price: €48.70 (2026-09-10 close)."}
+        ) == 48.7
+
+    def test_currency_codes_and_no_space(self):
+        assert extract_current_price(
+            {"facts_snapshot": "Price: NOK 179.40. USD conversion $19.34."}
+        ) == 179.4
+        assert extract_current_price(
+            {"facts_snapshot": "Current price: DKK157.00 (12-Sep reports)."}
+        ) == 157.0
+
+    def test_pence_suffix(self):
+        assert extract_current_price(
+            {"facts_snapshot": "GKP.L, 2026-09-12 (last close 194.00p, 2026-09-11)"}
+        ) == 194.0
+
+    def test_bare_number_when_currency_is_in_header(self):
+        state = {"facts_snapshot": "Roche, CHF\nCurrent: 344.20 (2026-09-11 close)."}
+        assert extract_current_price(state) == 344.2
+
+    def test_price_line_beats_softer_current_hint(self):
+        state = {
+            "facts_snapshot": (
+                "Price: 571.60 SEK last close 2026-09-11. Stale: 578.00.\n"
+                "Balance sheet: Current 1.23; quick 0.76; BVPS vs ~SEK 93 derived."
+            )
+        }
+        assert extract_current_price(state) == 571.6
+
+    def test_excludes_market_cap_magnitudes(self):
+        assert extract_current_price({"facts_snapshot": "Market cap $190.3B."}) is None
 
     def test_returns_none_when_absent(self):
         assert extract_current_price({"facts_snapshot": "No numbers here."}) is None
@@ -230,48 +280,72 @@ class TestPortfolioManagerJevIntegration:
         node = create_portfolio_manager(llm)
         return node(_make_pm_state()), captured
 
-    @pytest.mark.unit
-    def test_jev_rating_overrides_llm_and_block_is_appended(self, monkeypatch):
-        jev = JevAssessment(
+    @staticmethod
+    def _decision():
+        return PortfolioDecision(
+            arguments_table="| a | b | c | d |",
+            weighted_score=-50.0,
+            scenario_table="| s | p | t | d |",
+            trade_ticket="Exit now.",
+            rating=PortfolioRating.SELL,
+            executive_summary="Sell.",
+            investment_thesis="Bearish.",
+        )
+
+    @staticmethod
+    def _jev(confidence):
+        return JevAssessment(
             rating=PortfolioRating.OVERWEIGHT,
             allocation_pct=3.5,
             intrinsic_value=115.0,
             intrinsic_value_low=95.0,
             intrinsic_value_high=135.0,
-            confidence=0.8,
+            confidence=confidence,
             model="jev-test",
         )
-        decision = PortfolioDecision(
-            arguments_table="| a | b | c | d |",
-            weighted_score=-50.0,
-            scenario_table="| s | p | t | d |",
-            trade_ticket="Exit now.",
-            rating=PortfolioRating.SELL,
-            executive_summary="Sell.",
-            investment_thesis="Bearish.",
-        )
-        result, captured = self._run(monkeypatch, jev, decision)
+
+    @pytest.mark.unit
+    def test_high_confidence_jev_takes_precedence_over_pm(self, monkeypatch):
+        result, captured = self._run(monkeypatch, self._jev(0.98), self._decision())
         final = result["final_trade_decision"]
 
+        # Jev's rating overrides the LLM's Sell, and both judgments are recorded.
         assert "**Rating**: Overweight" in final
         assert "Jev Decision Tool" in final
         assert "3.5% of NAV" in final
-        assert "authoritative" in captured["prompt"]
+        assert "**Decision Reconciliation**" in final
+        assert "Jev's rating takes precedence" in final
+        assert "Portfolio Manager's own rating: **Sell**" in final
+        assert "takes precedence" in captured["prompt"]
+
+    @pytest.mark.unit
+    def test_low_confidence_jev_is_advisory_and_pm_rating_stands(self, monkeypatch):
+        result, captured = self._run(monkeypatch, self._jev(0.80), self._decision())
+        final = result["final_trade_decision"]
+
+        # Below threshold Jev is advisory; the PM's own Sell rating stands.
+        assert "**Rating**: Sell" in final
+        assert "Jev Decision Tool" in final
+        assert "**Decision Reconciliation**" in final
+        assert "portfolio manager reconciled" in final
+        assert "advisory only" in captured["prompt"]
 
     @pytest.mark.unit
     def test_no_jev_leaves_llm_rating_untouched(self, monkeypatch):
-        decision = PortfolioDecision(
-            arguments_table="| a | b | c | d |",
-            weighted_score=-50.0,
-            scenario_table="| s | p | t | d |",
-            trade_ticket="Exit now.",
-            rating=PortfolioRating.SELL,
-            executive_summary="Sell.",
-            investment_thesis="Bearish.",
-        )
-        result, captured = self._run(monkeypatch, None, decision)
+        result, captured = self._run(monkeypatch, None, self._decision())
         final = result["final_trade_decision"]
 
         assert "**Rating**: Sell" in final
         assert "Jev Decision Tool" not in final
-        assert "authoritative" not in captured["prompt"]
+        assert "Decision Reconciliation" not in final
+        assert "Jev" not in captured["prompt"]
+
+    @pytest.mark.unit
+    def test_confidence_exactly_at_threshold_does_not_take_precedence(self):
+        assessment = self._jev(JEV_PRECEDENCE_CONFIDENCE)
+        assert jev_takes_precedence(assessment) is False
+
+    @pytest.mark.unit
+    def test_confidence_above_threshold_takes_precedence(self):
+        assert jev_takes_precedence(self._jev(0.951)) is True
+        assert jev_takes_precedence(None) is False

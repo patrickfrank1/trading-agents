@@ -72,6 +72,12 @@ _RATING_DESCRIPTIONS = {
 }
 
 
+# Above this calibrated confidence, Jev's rating takes precedence over the
+# portfolio manager's own judgment. At or below it, Jev is advisory and the
+# portfolio manager reconciles the two views itself.
+JEV_PRECEDENCE_CONFIDENCE = 0.95
+
+
 @dataclass
 class JevAssessment:
     """Structured result of one Jev decision call."""
@@ -85,6 +91,15 @@ class JevAssessment:
     model: str = ""
     current_price: Optional[float] = None
     answers: dict[str, Any] = field(default_factory=dict)
+
+
+def jev_takes_precedence(assessment: Optional[JevAssessment]) -> bool:
+    """True when Jev's calibrated confidence exceeds the precedence threshold."""
+    return bool(
+        assessment is not None
+        and assessment.confidence is not None
+        and assessment.confidence > JEV_PRECEDENCE_CONFIDENCE
+    )
 
 
 def _price_bands() -> tuple[tuple[str, float, float], ...]:
@@ -112,32 +127,38 @@ _ALLOCATION_CRITERIA = {
 }
 
 
-def extract_current_price(state: dict) -> Optional[float]:
-    """Best-effort parse of the current share price from the collected reports.
+# Currency marker that must sit next to a number for it to be a price. This
+# deliberately excludes bare numbers so a date like "last close 2026-09-11"
+# can never be mistaken for a price.
+_CURRENCY = (
+    r"(?:(?:US|HK|CA|AU|NZ|S)\$|[$€£¥]|"
+    r"USD|EUR|GBP|CHF|NOK|DKK|SEK|RMB|CNY|HKD|CAD|AUD|JPY|NZD)"
+)
+_NUMBER = r"([0-9][0-9,]*(?:\.[0-9]+)?)"
+# Reject magnitudes (market cap), percentages and ranges that follow an amount.
+_BAD_AFTER = (
+    r"(?![0-9])"
+    r"(?!(?:\.\d+)?\s*(?:bn|mn|b|m|t|k|%|pct)\b)"
+    r"(?!\s?[–-]\s?[€£$]?\s?\d)"
+)
+_PREFIX_AMOUNT = re.compile(rf"{_CURRENCY}\s*{_NUMBER}{_BAD_AFTER}", re.IGNORECASE)
+_SUFFIX_AMOUNT = re.compile(rf"{_NUMBER}\s*(?:pence|p)\b", re.IGNORECASE)
+# Explicit price labels win before softer hints, so a line like
+# "Balance sheet: ... Current 1.23 ... ~SEK 93" can never beat "Price: 571.60".
+_PRICE_HINTS = (
+    re.compile(
+        r"\bprice\b|last close|\bclose\b|trading at|trades at|share price|"
+        r"reference price|spot price",
+        re.IGNORECASE,
+    ),
+    re.compile(r"current|spot|last", re.IGNORECASE),
+)
 
-    Prefers an explicit "current price" mention, then other price phrasing,
-    then a bare dollar amount. Returns ``None`` when no plausible price is
-    found, in which case the numeric intrinsic-value questions are skipped.
-    """
-    if not state:
-        return None
-    text = " ".join(
-        str(state.get(key, "") or "")
-        for key in (
-            "facts_snapshot",
-            "fundamentals_report",
-            "business_report",
-            "market_report",
-        )
-    )
-    number = r"([0-9][0-9,]*(?:\.[0-9]+)?)"
-    patterns = (
-        rf"current price[^0-9$]{{0,40}}\$?\s*{number}",
-        rf"(?:trading at|trades at|last close|share price|price of)[^0-9$]{{0,30}}\$?\s*{number}",
-        rf"\$\s*{number}",
-    )
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
+
+def _amount_in(text: str) -> Optional[float]:
+    """First currency-annotated amount in ``text`` (prefix or pence suffix)."""
+    for regex in (_PREFIX_AMOUNT, _SUFFIX_AMOUNT):
+        match = regex.search(text)
         if not match:
             continue
         try:
@@ -145,6 +166,69 @@ def extract_current_price(state: dict) -> Optional[float]:
         except (TypeError, ValueError):
             continue
         if value > 0:
+            return value
+    return None
+
+
+def _bare_number_on_price_line(line: str) -> Optional[float]:
+    """First non-date, non-magnitude number on a line that mentions a price.
+
+    Needed for facts blocks that declare the currency in a header and write
+    the price as a bare number (e.g. ROP.SW: "Current: **344.20**").
+    """
+    for match in re.finditer(_NUMBER, line):
+        after = line[match.end():]
+        if re.match(r"[-\/]\d", after):
+            continue
+        if re.match(r"\s*(?:bn|mn|b|m|t|k|%|pct)", after, re.IGNORECASE):
+            continue
+        try:
+            value = float(match.group(1).replace(",", ""))
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            return value
+    return None
+
+
+def extract_current_price(state: dict) -> Optional[float]:
+    """Best-effort parse of the current share price from the collected reports.
+
+    Parses a currency-annotated amount on a price-mentioned line, then any
+    currency-annotated amount, then a bare number on a price line (for facts
+    blocks that state the currency in a header). The canonical facts snapshot
+    is searched before the individual reports so it wins on disagreements.
+    Returns ``None`` when no plausible price is found, in which case the
+    numeric intrinsic-value questions are skipped.
+    """
+    if not state:
+        return None
+    for text in (
+        state.get("facts_snapshot", ""),
+        state.get("fundamentals_report", ""),
+        state.get("business_report", ""),
+        state.get("market_report", ""),
+    ):
+        text = str(text or "")
+        if not text:
+            continue
+        lines = text.splitlines()
+        for hint in _PRICE_HINTS:
+            for line in lines:
+                if hint.search(line):
+                    value = _amount_in(line)
+                    if value is not None:
+                        return value
+            # A price line with a bare number (currency declared in a header,
+            # or a suffix code like "571.60 SEK") beats a currency-annotated
+            # amount elsewhere, which is often an EPS/dividend, not the price.
+            for line in lines:
+                if hint.search(line):
+                    value = _bare_number_on_price_line(line)
+                    if value is not None:
+                        return value
+        value = _amount_in(text)
+        if value is not None:
             return value
     return None
 

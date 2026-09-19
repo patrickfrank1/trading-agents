@@ -10,9 +10,12 @@ back gracefully to free-text generation.
 Before deciding, the PM always queries the Jev decision tool
 (``agents.utils.jev``) with the collected facts and analyst reports. Jev
 returns an intrinsic-value estimate with a low/high interval, a target
-allocation, and a 5-tier rating; its rating deterministically drives the
-final decision and its rendered output is appended to the decision markdown.
-When Jev is unavailable the existing LLM-only path runs unchanged.
+allocation, and a 5-tier rating. Both judgments are recorded in the decision.
+Reconciliation is confidence-gated: when Jev's calibrated confidence exceeds
+``JEV_PRECEDENCE_CONFIDENCE`` (0.95) Jev's rating and allocation take
+precedence; otherwise the portfolio manager reconciles the two views and its
+own rating stands. When Jev is unavailable the existing LLM-only path runs
+unchanged.
 """
 
 from __future__ import annotations
@@ -26,11 +29,44 @@ from tradingagents.agents.utils.agent_utils import (
     get_report_hygiene_instruction,
     get_reports_digest,
 )
-from tradingagents.agents.utils.jev import assess_with_jev, render_jev_assessment
+from tradingagents.agents.utils.jev import (
+    JEV_PRECEDENCE_CONFIDENCE,
+    assess_with_jev,
+    jev_takes_precedence,
+    render_jev_assessment,
+)
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
 )
+
+
+def _render_reconciliation(assessment, pm_rating, precedence: bool) -> str:
+    """Record both judgments and how they were reconciled in the decision."""
+    jev_rating = assessment.rating.value
+    confidence = (
+        f"{assessment.confidence:.0%}" if assessment.confidence is not None else "unknown"
+    )
+    threshold = f"{JEV_PRECEDENCE_CONFIDENCE:.0%}"
+    pm = pm_rating.value if pm_rating is not None else "n/a"
+    if precedence:
+        outcome = (
+            f"Jev's confidence ({confidence}) exceeds the {threshold} threshold, so "
+            f"**Jev's rating takes precedence** over the portfolio manager's own **{pm}**."
+        )
+    else:
+        outcome = (
+            f"Jev's confidence ({confidence}) is at or below the {threshold} threshold, "
+            f"so **the portfolio manager reconciled the two views** and its rating "
+            f"**{pm}** stands."
+        )
+    return (
+        "**Decision Reconciliation**\n"
+        f"- Portfolio Manager's own rating: **{pm}**\n"
+        f"- Jev rating: **{jev_rating}** (confidence {confidence}; "
+        f"precedence threshold {threshold})\n"
+        f"- {outcome}"
+    )
 
 
 def create_portfolio_manager(
@@ -71,19 +107,38 @@ def create_portfolio_manager(
                 max_state_chars=jev_max_state_chars,
             )
         jev_block = render_jev_assessment(jev_assessment) if jev_assessment else ""
+        jev_precedence = jev_takes_precedence(jev_assessment)
+
+        if jev_block and jev_precedence:
+            jev_instruction = (
+                f"Jev answered the collected facts with {jev_assessment.confidence:.0%} "
+                f"confidence, above the {JEV_PRECEDENCE_CONFIDENCE:.0%} precedence "
+                f"threshold, so Jev's rating **{jev_assessment.rating.value}** takes "
+                "precedence over the portfolio manager's own view: your final rating "
+                "MUST be Jev's rating and your trade ticket MUST use Jev's target "
+                "allocation. Explain Jev's intrinsic value and confidence interval, "
+                "and note where your own weighted-score analysis differs.\n\n"
+            )
+        elif jev_block:
+            confidence = (
+                f"{jev_assessment.confidence:.0%}"
+                if jev_assessment.confidence is not None
+                else "unknown"
+            )
+            jev_instruction = (
+                f"Jev answered the collected facts with {confidence} confidence, below "
+                f"the {JEV_PRECEDENCE_CONFIDENCE:.0%} precedence threshold, so Jev is "
+                "advisory only. You must reconcile Jev's view with your own analysis "
+                "and decide the final rating yourself. In your investment_thesis you "
+                "MUST explicitly address Jev's rating, intrinsic value, and confidence, "
+                "and explain how you reconciled them (agree or disagree, and why).\n\n"
+            )
+        else:
+            jev_instruction = ""
+
         jev_context = (
-            "**Jev Decision Tool output (authoritative for rating and allocation):**\n"
+            "**Jev Decision Tool output (an independent judgment — reconcile it with your own):**\n"
             f"{jev_block}\n"
-            if jev_block
-            else ""
-        )
-        jev_instruction = (
-            "The Jev Decision Tool output above is authoritative: use its rating "
-            "verbatim as the final rating and its target allocation verbatim in the "
-            "trade ticket. Build the thesis, scenarios, and sizing around Jev's "
-            "intrinsic value and confidence interval. If your own weighted score "
-            "implies a different band, Jev governs — explain the tool's output "
-            "rather than overriding it.\n\n"
             if jev_block
             else ""
         )
@@ -142,11 +197,14 @@ Provide a concise summary of the key drivers behind your final decision, then de
 
 Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}{get_report_hygiene_instruction()}"""
 
+        pm_own_rating: list = [None]
+
         def _apply_jev(decision: PortfolioDecision) -> PortfolioDecision:
-            # The Jev decision tool is authoritative for the rating; override
-            # whatever the LLM produced so the final decision deterministically
-            # reflects the tool.
-            if jev_assessment is not None:
+            # Keep the portfolio manager's own call for the reconciliation
+            # record, then apply Jev only when its confidence clears the
+            # precedence threshold; otherwise the PM's rating stands.
+            pm_own_rating[0] = decision.rating
+            if jev_precedence and jev_assessment is not None:
                 decision.rating = jev_assessment.rating
             return decision
 
@@ -159,7 +217,10 @@ Be decisive and ground every conclusion in specific evidence from the analysts.{
             mutate=_apply_jev,
         )
         if jev_block:
-            final_trade_decision = f"{final_trade_decision}\n\n{jev_block}"
+            final_trade_decision = (
+                f"{final_trade_decision}\n\n{jev_block}\n\n"
+                f"{_render_reconciliation(jev_assessment, pm_own_rating[0], jev_precedence)}"
+            )
 
         new_risk_debate_state = {
             "judge_decision": final_trade_decision,
