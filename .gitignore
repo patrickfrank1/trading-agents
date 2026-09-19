@@ -1,4 +1,6 @@
 # Custom
+bin/TICKERS.yaml
+bin/CANDIDATES.yaml
 reports/
 logs/
 .runstate/
