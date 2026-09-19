@@ -122,6 +122,7 @@ def render_joint_forecast(
     horizon: int = 8,
     scenario: str = "baseline",
     seed: int = 0,
+    stock_beta: float = 0.0,
 ) -> str:
     paths = simulate_joint(fit, panel_row, horizon=horizon, scenario=scenario, seed=seed)
     lines = [
@@ -145,6 +146,15 @@ def render_joint_forecast(
             f"[{s['p10']:+.1f}%, {s['p90']:+.1f}%] | "
             f"{s['p_positive']:.0%} | {s['p_below_10']:.0%} |"
         )
+        if var == "sp500_ret" and stock_beta and stock_beta > 0:
+            cum_beta = cumulative_returns(paths, fit, var) * stock_beta
+            s = summarize_cumulative(cum_beta)
+            lines.append(
+                f"| Stock (beta={stock_beta:g}, SPX surrogate) | {s['median']:+.1f}% | "
+                f"[{s['p25']:+.1f}%, {s['p75']:+.1f}%] | "
+                f"[{s['p10']:+.1f}%, {s['p90']:+.1f}%] | "
+                f"{s['p_positive']:.0%} | {s['p_below_10']:.0%} |"
+            )
     lines += [
         "",
         "Key macro paths (median cumulative move over the horizon):",
@@ -159,10 +169,15 @@ def render_joint_forecast(
         "- Quarterly model; returns are total returns over the full horizon.",
         "- Scenario shocks are applied in sigma units to the first forecast",
         "  quarter (state) or across the horizon (exogenous drivers).",
+        "- The signal is the DIFFERENCE vs baseline, not the level: level",
+        "  forecasts embed the historical drift of a mostly bull sample and",
+        "  are not price targets.",
         "- Inputs are free public data (FRED, yfinance); consensus surprises",
-        "  are proxied by realized-minus-trend inflation, not survey data.",
+        "  are proxied by realized-minus-trend inflation, credit spreads by",
+        "  the HYG/LQD ratio, not survey or index data.",
         "- This is a reduced-form probabilistic scenario tool, not a",
         "  structural causal estimate (identified shocks are deferred to V6).",
+        f"- Valid scenarios: {', '.join(sorted(SCENARIOS))}.",
     ]
     return "\n".join(lines)
 

@@ -22,6 +22,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.macro_timeseries import build_panel, load_latest_panel, model_dir
+from tradingagents.models.macro_bayes.asset_regressions import (
+    fit_asset_regressions,
+    save_asset_regressions,
+)
 from tradingagents.models.macro_bayes.joint import fit_joint_model, save_joint_model
 from tradingagents.models.macro_bayes.validate import format_validation_report, rolling_oos_gold
 from tradingagents.models.macro_bayes.v1_gold import fit_gold_model, save_gold_model
@@ -29,7 +33,7 @@ from tradingagents.models.macro_bayes.v1_gold import fit_gold_model, save_gold_m
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", choices=["v1", "joint", "all"], default="all")
+    parser.add_argument("--model", choices=["v1", "assets", "joint", "all"], default="all")
     parser.add_argument("--draws", type=int, default=1000)
     parser.add_argument("--tune", type=int, default=1000)
     parser.add_argument("--chains", type=int, default=2)
@@ -61,6 +65,14 @@ def main() -> int:
         fit = fit_gold_model(panel, draws=args.draws, tune=args.tune, chains=args.chains, seed=args.seed)
         path = save_gold_model(fit, os.path.join(model_dir(), "v1_gold.pkl"))
         print(f"V1 saved: {path} (n_obs={fit.n_obs}, draws={fit.n_draws})")
+
+    if args.model in ("assets", "all"):
+        print("\nFitting per-asset regression layer (gold / SPX / REITs / Treasuries)...")
+        payloads = fit_asset_regressions(bundle.full, draws=args.draws, tune=args.tune,
+                                         chains=args.chains, seed=args.seed)
+        path = save_asset_regressions(payloads, os.path.join(model_dir(), "asset_regressions.pkl"))
+        fitted = ", ".join(f"{t}(n={p['n_obs']})" for t, p in payloads.items())
+        print(f"Asset regressions saved: {path} ({fitted})")
 
     if args.model in ("joint", "all"):
         print("\nFitting joint V2/V3 VARX model...")
