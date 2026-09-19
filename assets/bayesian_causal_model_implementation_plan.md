@@ -260,8 +260,8 @@ gold_q_return_t = α + β1·Δreal_yield_t + β2·ΔUSD_t + β3·infl_surprise_t
                   + β4·NFCI_t + β5·GPR_t + ρ·gold_q_return_{t-1} + ε_t,   ε ~ Student-t
 ```
 
-- Sign-informed priors: `β1 < 0`, `β2 < 0`, `β3 > 0`, `β4 > 0` (NFCI: higher = tighter),
-  `β5 > 0`; `ρ ∈ (−1, 1)` with shrinkage.
+- Sign-informed priors (sign enforced by truncated priors): `β1 < 0`, `β2 < 0`,
+  `β3 > 0`, `β4 < 0` (ΔNFCI: tightening hurts gold), `β5 > 0`; `ρ` shrunk toward 0.
 - `infl_surprise_t`: realized CPI/PCE minus trailing AR forecast (free surrogate for
   consensus surprise).
 - Structural gold demand enters as an AR(1) residual latent only if diagnostics demand

@@ -108,4 +108,12 @@ DEFAULT_CONFIG = {
     # Macro data vendors (environment variables)
     # FRED_API_KEY    — Federal Reserve Economic Data (free)  https://fred.stlouisfed.org/docs/api/api_key.html
     # OECD, World Bank, ECB — no API key required
+    # Causal Bayesian macro model (assets/bayesian_causal_model_implementation_plan.md)
+    # Panel/model dirs default to <data_cache_dir>/macro_panel and
+    # <data_cache_dir>/macro_models when the overrides below are None.
+    "macro_panel_dir": None,
+    "macro_model_dir": None,
+    "macro_panel_start": "1990-01-01",
+    "macro_panel_max_age_days": 7,
+    "macro_forecast_horizon": 8,
 }

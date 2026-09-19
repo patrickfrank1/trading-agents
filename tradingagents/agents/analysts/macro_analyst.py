@@ -11,6 +11,7 @@ from tradingagents.agents.utils.macro_data_tools import (
     get_fomc_data,
     get_nonfarm_payrolls_data,
     get_macro_market_data,
+    get_macro_causal_forecast,
     get_fred_economic_data,
     get_oecd_data,
     get_world_bank_data,
@@ -45,6 +46,7 @@ def create_macro_analyst(llm, enable_web_search=True):
             get_fomc_data,
             get_nonfarm_payrolls_data,
             get_macro_market_data,
+            get_macro_causal_forecast,
             get_fred_economic_data,
             get_oecd_data,
             get_world_bank_data,
@@ -61,6 +63,7 @@ def create_macro_analyst(llm, enable_web_search=True):
             "- get_fomc_data(curr_date, look_back_days, limit): Retrieve Federal Open Market Committee (FOMC) data and monetary policy news. The FOMC sets the federal funds rate and conducts monetary policy. Analyze recent FOMC decisions, statements, and forward guidance to assess the current and expected monetary policy stance.\n"
             "- get_nonfarm_payrolls_data(curr_date, look_back_days, limit): Retrieve Non-farm Payrolls (NFP) data and labor market news. NFP measures monthly employment changes and is a critical indicator of economic health. Analyze employment trends and their implications for economic growth and policy.\n"
             "- get_macro_market_data(): Retrieve a comprehensive snapshot of broad macro market conditions (Treasury yields and yield curve, gold, oil, commodities, housing/REITs, and equity breadth including RSP/SPY ratio, VIX, Russell 2000). This data is cached for up to 7 days since it is independent of any individual ticker. Call this tool to understand the current state of financial markets.\n"
+            "- get_macro_causal_forecast(horizon_quarters, scenario, model): Run the quarterly causal Bayesian macro model (stability-constrained VARX, PyMC, fitted offline on FRED + market data) to get probabilistic forward scenarios for gold, S&P 500, Treasury bonds, and REITs: median cumulative returns, 25-75% and 10-90% intervals, P(positive), and tail risk. Scenarios: baseline, hawkish, inflation_shock, risk_off, productivity_boom. Use it to quantify cross-asset implications of the macro outlook; if the model is not fitted yet it returns setup instructions — fall back to the other tools in that case.\n"
             "- get_fred_economic_data(look_back_months): Retrieve official US economic indicators from the Federal Reserve Economic Data (FRED) database. Requires FRED_API_KEY. Provides actual CPI, PCE, Real GDP, unemployment rate, nonfarm payrolls, Fed funds rate, Treasury yields, yield curve spread, VIX, housing starts, median home prices, manufacturing employment, consumer sentiment, and industrial production.\n"
             "- get_oecd_data(): Retrieve key macro indicators from the OECD for US, Eurozone, Japan, UK, China, and Germany. No API key required. Covers GDP growth, unemployment, inflation, interest rates, industrial production, and retail trade.\n"
             "- get_world_bank_data(country): Retrieve macro indicators from the World Bank for a given country (default USA). No API key required. Covers GDP growth, inflation, unemployment, real interest rate, trade, FDI, government debt, and exchange rate.\n"

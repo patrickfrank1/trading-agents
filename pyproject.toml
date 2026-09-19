@@ -38,6 +38,13 @@ dependencies = [
 [project.scripts]
 tradingagents = "cli.main:app"
 
+[project.optional-dependencies]
+model = [
+    "pymc>=5.16",
+    "arviz>=0.20",
+    "pyarrow>=14.0",
+]
+
 [tool.setuptools.packages.find]
 include = ["tradingagents*", "cli*"]
 
@@ -51,6 +58,7 @@ markers = [
     "unit: fast isolated unit tests",
     "integration: tests requiring external services",
     "smoke: quick sanity-check tests",
+    "slow: longer-running tests (model fitting)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

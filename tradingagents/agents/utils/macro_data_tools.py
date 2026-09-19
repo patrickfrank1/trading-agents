@@ -19,6 +19,104 @@ from tradingagents.dataflows.macro_vendors import (
 from tradingagents.agents.utils.tool_errors import safe_tool
 
 
+def get_macro_causal_forecast_impl(
+    horizon_quarters: int = 8,
+    scenario: str = "baseline",
+    model: str = "joint",
+) -> str:
+    """Render the causal Bayesian macro model's forward scenario report.
+
+    Models are fitted offline (``scripts/fit_macro_model.py``); this reads
+    the cached posterior plus the latest quarterly panel and runs a
+    posterior-predictive forward simulation (NumPy only — no PyMC, no
+    network) at call time.
+    """
+    import os
+
+    from tradingagents.dataflows.macro_timeseries import load_latest_panel, model_dir
+    from tradingagents.models.macro_bayes.common import load_model
+    from tradingagents.models.macro_bayes.simulate import (
+        build_last_state_row,
+        render_joint_forecast,
+        render_scenario_list,
+        render_v1_forecast,
+    )
+    from tradingagents.models.macro_bayes.joint import JointModelFit
+    from tradingagents.models.macro_bayes.v1_gold import GoldModelFit
+
+    horizon = int(min(max(horizon_quarters, 1), 12))
+
+    bundle = load_latest_panel()
+    if bundle is None:
+        return (
+            "Causal Bayesian macro model not available: no quarterly panel found.\n"
+            "Build it offline with: `python scripts/fit_macro_model.py` "
+            "(requires FRED_API_KEY and the optional `model` extra: pymc, arviz, pyarrow)."
+        )
+
+    model_file = os.path.join(model_dir(), "joint_v2v3.pkl" if model == "joint" else "v1_gold.pkl")
+    if not os.path.exists(model_file):
+        return (
+            f"Causal Bayesian macro model not available: {os.path.basename(model_file)} "
+            "not found.\nFit the model offline with: `python scripts/fit_macro_model.py` "
+            "(models persist under ~/.tradingagents/cache/macro_models)."
+        )
+
+    if model == "joint" and scenario not in SCENARIO_NAMES:
+        return f"Unknown scenario '{scenario}'.\n\n{render_scenario_list()}"
+
+    try:
+        payload = load_model(model_file)
+        row = build_last_state_row(bundle.data)
+        if model == "joint":
+            fit = JointModelFit.from_payload(payload)
+            return render_joint_forecast(fit, row, horizon=horizon, scenario=scenario)
+        fit = GoldModelFit.from_payload(payload)
+        return render_v1_forecast(fit, row)
+    except Exception as e:
+        return f"Causal Bayesian macro model forecast failed: {e}"
+
+
+SCENARIO_NAMES = ("baseline", "hawkish", "inflation_shock", "risk_off", "productivity_boom")
+
+
+@tool
+@safe_tool
+def get_macro_causal_forecast(
+    horizon_quarters: Annotated[int, "Forecast horizon in quarters (1-12)"] = 8,
+    scenario: Annotated[str, "baseline | hawkish | inflation_shock | risk_off | productivity_boom"] = "baseline",
+    model: Annotated[str, "joint (multi-asset VARX) or v1 (gold only)"] = "joint",
+) -> str:
+    """
+    Run the causal Bayesian macro model to generate probabilistic forward
+    scenarios for gold, equities (S&P 500), Treasury bonds, and REITs over
+    a quarterly horizon.
+
+    The model is a stability-constrained quarterly VARX(1) estimated with
+    PyMC on free public data (FRED + yfinance), with sign-informed priors
+    and Student-t errors. It is fitted offline; this tool loads the cached
+    posterior and simulates the requested scenario.
+
+    Use this to frame the cross-asset macro outlook quantitatively:
+    median cumulative returns, 25-75% / 10-90% intervals, probability of
+    gains, and tail risk per asset under baseline, hawkish, inflation
+    shock, risk-off, or productivity-boom scenarios.
+
+    Args:
+        horizon_quarters: Forecast horizon in quarters (1-12, default 8)
+        scenario: One of baseline, hawkish, inflation_shock, risk_off,
+            productivity_boom (default baseline)
+        model: "joint" for the multi-asset VARX model (default) or "v1"
+            for the gold-only one-quarter-ahead model
+
+    Returns:
+        str: A formatted markdown report with the scenario table
+    """
+    return get_macro_causal_forecast_impl(
+        horizon_quarters=horizon_quarters, scenario=scenario, model=model
+    )
+
+
 def _search_macro_news(queries, curr_date, look_back_days, limit):
     all_news = []
     seen_titles = set()
