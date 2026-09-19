@@ -36,6 +36,8 @@ from tradingagents.agents.utils.macro_data_tools import (
     get_fomc_data,
     get_nonfarm_payrolls_data,
     get_macro_market_data,
+    get_macro_causal_forecast,
+    get_macro_sensitivity,
     get_fred_economic_data,
     get_oecd_data,
     get_world_bank_data,

@@ -461,7 +461,7 @@ class TestGetRegimeAnalog:
 NEW_TOOLS_BY_ANALYST = {
     "market": ["get_relative_momentum_vs_sector"],
     "fundamentals": ["get_dilution_profile", "get_regime_analog", "get_fx_rates"],
-    "macro": ["get_fx_rates"],
+    "macro": ["get_fx_rates", "get_macro_causal_forecast", "get_macro_sensitivity"],
     "business": ["get_earnings_call_transcripts"],
 }
 

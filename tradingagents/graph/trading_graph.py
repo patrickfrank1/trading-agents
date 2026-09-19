@@ -52,6 +52,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_fomc_data,
     get_nonfarm_payrolls_data,
     get_macro_market_data,
+    get_macro_causal_forecast,
+    get_macro_sensitivity,
     get_fred_economic_data,
     get_oecd_data,
     get_world_bank_data,
@@ -355,6 +357,9 @@ class TradingAgentsGraph:
                 get_nonfarm_payrolls_data,
                 # Broad macro market snapshot (Treasury, gold, oil, commodities, housing, breadth)
                 get_macro_market_data,
+                # Causal Bayesian macro model (scenario forward paths + driver sensitivities)
+                get_macro_causal_forecast,
+                get_macro_sensitivity,
                 # Institutional macro data vendors
                 get_fred_economic_data,
                 get_oecd_data,
