@@ -107,7 +107,7 @@ FRED_PANEL_SERIES = {
     "bank_loans": ("TOTLL", "eop", 0),
     "delinq_consumer": ("DRALACBS", "mean", 3),
     "delinq_business": ("DRBLACBS", "mean", 3),
-    "delinq_cre": ("DRCRELEXLACBS", "mean", 3),
+    "delinq_cre": ("DRCRELEXFACBS", "mean", 3),
     "consumer_credit": ("TOTALSL", "eop", 1),
 }
 
@@ -119,13 +119,13 @@ YF_PANEL_TICKERS = {
     "reits": "VNQ",
     "usd": "DX-Y.NYB",
     "wti_oil": "CL=F",
-    "vix": "^VIX",
+    "equity_vol": "^VIX",
     "hy_credit": "HYG",
     "ig_credit": "LQD",
     "bank_equity": "KRE",
 }
 
-GPR_CSV_URL = "https://www.matteoiacoviello.com/gpr_files/data_gpr_export.csv"
+GPR_CSV_URL = "https://www.matteoiacoviello.com/gpr_files/data_gpr_export.xls"
 
 FRED_RATE_LIMIT_DELAY = 0.75
 
@@ -232,9 +232,22 @@ def _d_hy_oas_chg(df):
     return df["hy_oas"].diff()
 
 
+@derived_series(["hy_credit", "ig_credit"])
+def _d_credit_spread_proxy(df):
+    # FRED's BAML credit-spread series are license-limited to the last 3
+    # years; the HYG/LQD price ratio is the free full-history surrogate
+    # (plan §3.3) for the credit-spread direction.
+    return df["hy_credit"] / df["ig_credit"] * 100.0
+
+
+@derived_series(["credit_spread_proxy"], extra_lag=1)
+def _d_credit_spread_chg(df):
+    return df["credit_spread_proxy"].pct_change(fill_method=None) * 100.0
+
+
 @derived_series(["fed_balance_sheet"], extra_lag=1)
 def _d_qe_flow(df):
-    return df["fed_balance_sheet"].pct_change()
+    return df["fed_balance_sheet"].pct_change(fill_method=None)
 
 
 def _derived_registry():
@@ -285,6 +298,8 @@ def _fetch_fred_histories(api_key: str, start: str) -> dict:
 
 
 def _fetch_yf_quarterly(start: str) -> pd.DataFrame:
+    import yfinance as yf
+
     from .stockstats_utils import yf_retry
 
     frames = {}
@@ -305,8 +320,15 @@ def _fetch_yf_quarterly(start: str) -> pd.DataFrame:
 
 def _fetch_gpr(start: str) -> pd.Series:
     try:
-        df = pd.read_csv(GPR_CSV_URL, parse_dates=["DATE"], index_col="DATE")
-        s = df["GPR"].astype(float).loc[start:]
+        try:
+            df = pd.read_csv(GPR_CSV_URL)
+        except (ValueError, UnicodeDecodeError):
+            df = pd.read_excel(GPR_CSV_URL)
+        date_col = next((c for c in ("DATE", "month", "date") if c in df.columns), None)
+        if date_col is None:
+            raise ValueError("no date column found")
+        df.index = pd.to_datetime(df[date_col])
+        s = df["GPR"].astype(float).dropna().loc[start:]
         return _resample_quarterly(s, "mean")
     except Exception as e:
         logger.warning("GPR index unavailable (%s); column omitted", e)
@@ -324,13 +346,18 @@ def build_full_panel(start: str | None = None, fetch_gpr: bool = True) -> pd.Dat
     else:
         logger.warning("FRED_API_KEY not set; panel will contain only market data")
 
-    df = pd.DataFrame(fred)
-    if not df.empty:
-        df.index = pd.to_datetime(df.index)
+    # aggregate each raw FRED series to quarterly BEFORE joining
+    fred_q = {}
+    for name, (_sid, agg, _lag) in FRED_PANEL_SERIES.items():
+        if name in fred:
+            s = fred[name].dropna()
+            if not s.empty:
+                fred_q[name] = _resample_quarterly(s.loc[s.index >= pd.Timestamp(start)], agg)
+    df = pd.DataFrame(fred_q)
 
     yf_q = _fetch_yf_quarterly(start)
     if not yf_q.empty:
-        df = df.join(yf_q, how="outer") if not df.empty else yf_q.copy()
+        df = yf_q.join(df, how="outer") if not df.empty else yf_q.copy()
 
     if fetch_gpr:
         gpr = _fetch_gpr(start)
@@ -340,33 +367,27 @@ def build_full_panel(start: str | None = None, fetch_gpr: bool = True) -> pd.Dat
     if df.empty:
         raise RuntimeError("Panel is empty: no data sources succeeded")
 
+    # Some FRED series (e.g. GDPPOT) carry future projections; cap the index
+    # at the current quarter (partial quarter included) so the panel never
+    # extends beyond today.
+    df = df[df.index.to_period("Q") <= pd.Period(datetime.today(), freq="Q")]
+    if df.empty:
+        raise RuntimeError("Panel is empty after truncating future-dated rows")
+
     idx = pd.period_range(pd.Period(start, freq="Q"), df.index.max().to_period("Q"), freq="Q")
     idx_ts = idx.to_timestamp(how="end").normalize()
     df = df.reindex(idx_ts)
     df.index.name = "quarter"
 
-    df = _apply_fred_aggregation(df, start)
     df = _add_asset_returns(df)
     df = _add_derived(df)
-    return df
-
-
-def _apply_fred_aggregation(df: pd.DataFrame, start: str) -> pd.DataFrame:
-    for name, spec in FRED_PANEL_SERIES.items():
-        if name not in df.columns:
-            continue
-        col = df[name].dropna()
-        if col.empty:
-            continue
-        s = col.loc[(col.index >= pd.Timestamp(start))]
-        df[name] = _resample_quarterly(s, spec.agg).reindex(df.index)
     return df
 
 
 def _add_asset_returns(df: pd.DataFrame) -> pd.DataFrame:
     for name in YF_PANEL_TICKERS:
         if name in df.columns:
-            df[f"{name}_ret"] = df[name].pct_change() * 100.0
+            df[f"{name}_ret"] = df[name].pct_change(fill_method=None) * 100.0
     return df
 
 

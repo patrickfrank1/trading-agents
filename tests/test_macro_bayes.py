@@ -61,7 +61,7 @@ def _synthetic_panel(periods=140, seed=11):
     df["mortgage_rate_chg"] = rng.normal(0, 0.3, periods)
     df["fiscal_impulse"] = rng.normal(0, 1.0, periods)
     df["nfci_chg"] = rng.normal(0, 0.3, periods)
-    df["hy_oas_chg"] = rng.normal(0, 8, periods)
+    df["credit_spread_chg"] = rng.normal(0, 3, periods)
     df["cpi_qoq_ann"] = 2.5 + rng.normal(0, 1.2, periods)
     df["profits_growth"] = 6 + rng.normal(0, 8, periods)
     df["output_gap"] = rng.normal(0, 1.5, periods)

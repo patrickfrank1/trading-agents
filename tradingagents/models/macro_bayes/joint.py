@@ -7,8 +7,9 @@ Endogenous block (standardized internally)::
     X_t = c + A X_{t-1} + B U_t + eps_t,   eps_t ~ Student-t(nu, diag(sigma))
 
 - Endog: gold/SPX/Treasury-bond/REIT quarterly returns, change in the 10Y
-  real yield, CPI inflation, corporate-profit growth, output gap, NFCI and
-  high-yield OAS changes (financial & credit conditions indicators).
+  real yield, CPI inflation, corporate-profit growth, output gap, NFCI
+  change and the credit-spread proxy change (HYG/LQD ratio; FRED's BAML
+  OAS series are license-limited to 3 years, plan §3.3).
 - Exog: USD return, WTI return, CPI surprise, mortgage-rate change,
   fiscal impulse.
 - Feedback loops are *lagged only* (within-quarter slice is a DAG by
@@ -52,7 +53,7 @@ ENDOG_VARS = [
     "profits_growth",
     "output_gap",
     "nfci_chg",
-    "hy_oas_chg",
+    "credit_spread_chg",
 ]
 
 EXOG_VARS = [
@@ -138,7 +139,7 @@ def fit_joint_model(
     tune: int = 1000,
     chains: int = 2,
     seed: int = 42,
-    min_obs: int = 80,
+    min_obs: int = 70,
     stability_bound: float = 0.99,
 ) -> JointModelFit:
     import pymc as pm

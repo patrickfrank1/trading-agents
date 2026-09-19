@@ -54,7 +54,8 @@ def _fake_panel(periods=40):
     for col in ("real_gdp", "real_potential_gdp", "federal_receipts", "federal_outlays",
                 "nominal_gdp", "federal_interest", "gross_federal_debt", "cpi", "cpi_core",
                 "corporate_profits", "real_yield_10y", "treasury_10y", "breakeven_10y",
-                "mortgage_rate_30y", "nfci", "hy_oas", "fed_balance_sheet"):
+                "mortgage_rate_30y", "nfci", "hy_oas", "fed_balance_sheet",
+                "hy_credit", "ig_credit"):
         df[col] = 100 + np.abs(rng.normal(size=periods)).cumsum() * (1 if col != "nominal_gdp" else 3)
     for name in ("gold", "sp500"):
         df[name] = 100 * np.abs(rng.normal(size=periods)).cumsum() + 100

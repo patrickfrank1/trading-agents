@@ -26,7 +26,7 @@ SCENARIOS = {
     "baseline": {},
     "hawkish": {"shock": {"real_yield_chg": 1.5}, "exog": {"usd_ret": 0.5}},
     "inflation_shock": {"shock": {"cpi_qoq_ann": 1.5}, "exog": {"inflation_surprise": 2.0, "wti_oil_ret": 1.0}},
-    "risk_off": {"shock": {"nfci_chg": 2.0, "hy_oas_chg": 1.5, "sp500_ret": -1.0}},
+    "risk_off": {"shock": {"nfci_chg": 2.0, "credit_spread_chg": 1.5, "sp500_ret": -1.0}},
     "productivity_boom": {"shock": {"output_gap": 1.0, "profits_growth": 1.0}, "exog": {"usd_ret": -0.5}},
 }
 
@@ -43,10 +43,16 @@ def simulate_joint(
     Returns an array of shape ``(n_draws, horizon, K)`` in *standardized*
     units. Each draw iterates its own transition matrix; innovations are
     Student-t with the draw's own nu and per-variable sigma.
+
+    ``scenario`` may be a name from ``SCENARIOS`` or a custom spec dict
+    with optional ``"shock"`` / ``"exog"`` entries in sigma units.
     """
-    if scenario not in SCENARIOS:
-        raise ValueError(f"Unknown scenario '{scenario}'. Available: {sorted(SCENARIOS)}")
-    spec = SCENARIOS[scenario]
+    if isinstance(scenario, str):
+        if scenario not in SCENARIOS:
+            raise ValueError(f"Unknown scenario '{scenario}'. Available: {sorted(SCENARIOS)}")
+        spec = SCENARIOS[scenario]
+    else:
+        spec = scenario
     K, L = len(fit.endog_vars), len(fit.exog_vars)
     endog_ix = {v: i for i, v in enumerate(fit.endog_vars)}
     exog_ix = {v: i for i, v in enumerate(fit.exog_vars)}
