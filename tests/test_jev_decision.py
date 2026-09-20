@@ -280,6 +280,19 @@ class TestPortfolioManagerJevIntegration:
         node = create_portfolio_manager(llm)
         return node(_make_pm_state()), captured
 
+    def _run_freetext(self, monkeypatch, jev_assessment, content):
+        from tradingagents.agents.managers import portfolio_manager as pm_module
+
+        monkeypatch.setattr(pm_module, "assess_with_jev", lambda state, **kw: jev_assessment)
+        monkeypatch.setattr(
+            pm_module, "build_instrument_context", lambda ticker: f"Instrument {ticker}"
+        )
+        llm = MagicMock()
+        llm.with_structured_output.side_effect = NotImplementedError("no structured output")
+        llm.invoke.return_value = MagicMock(content=content)
+        node = create_portfolio_manager(llm)
+        return node(_make_pm_state())["final_trade_decision"]
+
     @staticmethod
     def _decision():
         return PortfolioDecision(
@@ -339,6 +352,25 @@ class TestPortfolioManagerJevIntegration:
         assert "Jev Decision Tool" not in final
         assert "Decision Reconciliation" not in final
         assert "Jev" not in captured["prompt"]
+
+    @pytest.mark.unit
+    def test_freetext_fallback_recovers_pm_own_rating(self, monkeypatch):
+        # No structured output -> the mutate hook never runs; the reconciliation
+        # must still report the PM's own prose rating instead of "n/a".
+        final = self._run_freetext(
+            monkeypatch, self._jev(0.80), "**Rating**: Underweight\n\nBearish."
+        )
+
+        assert "Portfolio Manager's own rating: **Underweight**" in final
+        assert "**Underweight** stands" in final
+        assert "rating **n/a** stands" not in final
+
+    @pytest.mark.unit
+    def test_freetext_fallback_without_parseable_rating(self, monkeypatch):
+        final = self._run_freetext(monkeypatch, self._jev(0.80), "No rating stated here.")
+
+        assert "Portfolio Manager's own rating: **n/a**" in final
+        assert "could not" in final
 
     @pytest.mark.unit
     def test_confidence_exactly_at_threshold_does_not_take_precedence(self):

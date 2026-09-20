@@ -20,7 +20,11 @@ unchanged.
 
 from __future__ import annotations
 
-from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
+from tradingagents.agents.schemas import (
+    PortfolioDecision,
+    PortfolioRating,
+    render_pm_decision,
+)
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_claim_audit_block,
@@ -35,6 +39,7 @@ from tradingagents.agents.utils.jev import (
     jev_takes_precedence,
     render_jev_assessment,
 )
+from tradingagents.agents.utils.rating import parse_rating
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -49,10 +54,21 @@ def _render_reconciliation(assessment, pm_rating, precedence: bool) -> str:
     )
     threshold = f"{JEV_PRECEDENCE_CONFIDENCE:.0%}"
     pm = pm_rating.value if pm_rating is not None else "n/a"
-    if precedence:
+    if precedence and pm_rating is not None:
         outcome = (
             f"Jev's confidence ({confidence}) exceeds the {threshold} threshold, so "
             f"**Jev's rating takes precedence** over the portfolio manager's own **{pm}**."
+        )
+    elif precedence:
+        outcome = (
+            f"Jev's confidence ({confidence}) exceeds the {threshold} threshold, so "
+            "**Jev's rating takes precedence** over the portfolio manager's own view."
+        )
+    elif pm_rating is None:
+        outcome = (
+            f"Jev's confidence ({confidence}) is at or below the {threshold} threshold, "
+            "so Jev is advisory only and the portfolio manager's own rating could not "
+            "be determined from its output."
         )
     else:
         outcome = (
@@ -216,6 +232,15 @@ Be decisive and ground every conclusion in specific evidence from the analysts.{
             "Portfolio Manager",
             mutate=_apply_jev,
         )
+        if pm_own_rating[0] is None and not jev_precedence:
+            # The structured path was unavailable or failed, so ``mutate`` never
+            # ran and we have no typed rating. Recover the PM's own call from its
+            # prose deterministically so the reconciliation does not report "n/a".
+            # Skip this when Jev takes precedence: the free-text PM was told to
+            # adopt Jev's rating, so its prose is not an independent judgment.
+            parsed = parse_rating(final_trade_decision, default="")
+            if parsed in {r.value for r in PortfolioRating}:
+                pm_own_rating[0] = PortfolioRating(parsed)
         if jev_block:
             final_trade_decision = (
                 f"{final_trade_decision}\n\n{jev_block}\n\n"
