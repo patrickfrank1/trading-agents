@@ -1,6 +1,6 @@
 # Custom
 bin/TICKERS.yaml
-bin/CANDIDATES.yaml
+bin/PORTFOLIO.yaml
 reports/
 logs/
 .runstate/
