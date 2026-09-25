@@ -116,6 +116,53 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _cmd_fill_check(args: argparse.Namespace) -> int:
+    from tradingpaperaccount.client import AlpacaPaperClient
+
+    accounts: list[dict[str, Any]] = []
+    any_open = False
+    for index in args.accounts:
+        config = resolve_account(index)
+        client = AlpacaPaperClient(config.api_key, config.secret_key, paper=config.paper)
+        open_orders = client.get_open_orders()
+        state = client.get_account_state()
+        any_open = any_open or bool(open_orders)
+        accounts.append(
+            {
+                "index": config.index,
+                "account_number": state.account_number,
+                "equity": state.equity,
+                "cash": state.cash,
+                "open_orders": [order.to_dict() for order in open_orders],
+                "positions": [asdict(pos) for pos in state.positions.values()],
+            }
+        )
+
+    if args.json:
+        _print_json({"accounts": accounts, "all_filled": not any_open})
+    else:
+        for entry in accounts:
+            n_open = len(entry["open_orders"])
+            status = "ALL FILLED" if not n_open else f"{n_open} OPEN"
+            print(
+                f"Account {entry['index']} ({entry['account_number']}) | {status} | "
+                f"equity={entry['equity']:,.2f} cash={entry['cash']:,.2f} "
+                f"positions={len(entry['positions'])}"
+            )
+            for order in entry["open_orders"]:
+                print(
+                    f"    OPEN {order['side'].upper():<4} {order['symbol']:<12} "
+                    f"filled {order['filled_qty']:.6f}/{order['qty']:.6f} "
+                    f"status={order['status']}"
+                )
+            for pos in entry["positions"]:
+                print(
+                    f"    {pos['symbol']:<12} qty={pos['qty']:<14.6f} "
+                    f"value={pos['market_value']:,.2f}"
+                )
+    return EXIT_ERROR if any_open else EXIT_OK
+
+
 def _cmd_rebalance(args: argparse.Namespace) -> int:
     from tradingpaperaccount.client import AlpacaPaperClient
     from tradingpaperaccount.executor import RebalanceExecutor
@@ -238,6 +285,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_rebalance.add_argument("--json", action="store_true", help="machine-readable output")
     p_rebalance.set_defaults(func=_cmd_rebalance)
+
+    p_fill = sub.add_parser(
+        "fill-check",
+        help="check whether submitted orders have filled (repeatable -a)",
+    )
+    p_fill.add_argument(
+        "-a",
+        "--account",
+        type=int,
+        action="append",
+        dest="accounts",
+        required=True,
+        choices=range(MIN_ACCOUNT_INDEX, MAX_ACCOUNT_INDEX + 1),
+        metavar=f"{{{MIN_ACCOUNT_INDEX}..{MAX_ACCOUNT_INDEX}}}",
+        help="paper account index (repeatable, e.g. -a 1 -a 2)",
+    )
+    p_fill.add_argument("--json", action="store_true", help="machine-readable output")
+    p_fill.set_defaults(func=_cmd_fill_check)
 
     return parser
 

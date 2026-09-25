@@ -29,6 +29,7 @@ uv run tradingpaperaccount accounts --json
 uv run tradingpaperaccount status   --account 1  # balances + positions
 uv run tradingpaperaccount positions --account 1 # positions only
 uv run tradingpaperaccount positions --account 1 --json
+uv run tradingpaperaccount fill-check -a 1 -a 2  # any orders still open? (exit 1 if so)
 ```
 
 Programmatically:
@@ -92,6 +93,26 @@ uv run tradingpaperaccount rebalance --account 1 --weights weights.json --execut
 
 Flags: `--cash-buffer 0.05` overrides the file/default (default `0.05`),
 `--min-order-value` (library default `1.0`) skips dust, `--json` is for agents.
+
+### Post-open fill check
+
+After submitting a rebalance, confirm it filled once the market is open
+(orders queue outside market hours). `fill-check` accepts repeatable `-a`
+indices and exits non-zero while anything is still open, so it works as a cron
+or alert hook:
+
+```bash
+uv run tradingpaperaccount fill-check -a 1 -a 2
+uv run tradingpaperaccount fill-check -a 1 -a 2 --json
+```
+
+A repo-root wrapper defaults to accounts 1 and 2:
+
+```bash
+bin/check_fills.sh              # accounts 1 and 2
+bin/check_fills.sh 1 2 3        # explicit accounts
+bin/check_fills.sh --json 1 2   # machine-readable
+```
 
 ## Library
 

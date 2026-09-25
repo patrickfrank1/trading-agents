@@ -37,6 +37,18 @@ OPENAI_API_KEY=... uv run python packages/tradingagents/scripts/smoke_structured
 docker compose -f packages/tradingagents/docker-compose.yml run --rm tradingagents
 ```
 
+## Paper account rebalancing
+
+`packages/tradingpaperaccount` rebalances Alpaca paper accounts to target weights
+(env-configured indices 1–3, dry-run by default). Run from the repo root:
+
+```bash
+uv run tradingpaperaccount accounts --json                    # configured indices
+uv run tradingpaperaccount rebalance -a 2 -w weights.json     # preview (no orders)
+uv run tradingpaperaccount rebalance -a 2 -w weights.json --execute
+bin/check_fills.sh 1 2                                        # post-open fill check (exit 1 if any order open)
+```
+
 ## opencode agents / commands
 
 - `/compare-stocks <reports-dir>` — runs the `portfolio-comparison` agent (`.opencode/agent/portfolio-comparison.md`): reads `5_portfolio/decision.md` from every report dir under the given directory (handles `run_*`/`batch_*`/`archive` groupings, latest report per ticker wins), ranks equities by investability, treats ETFs as baselines, sizes positions via a fractional-Kelly criterion from each stock's scenario table (trend/probability-of-gain dominates, expected return scales magnitude), and writes `reports/portfolio_comparison_<scope>_<YYYYMMDD>.md` with buy/sell answers, Kelly-derived NAV weightings, top-2 risks/opportunities, and 1Y/5Y expected returns per stock.

@@ -22,6 +22,33 @@ class Position:
         return self.asset_class == "crypto" or "/" in self.symbol
 
 
+@dataclass(frozen=True)
+class Order:
+    """A live Alpaca order, as reported by the broker."""
+
+    order_id: str
+    symbol: str
+    side: str
+    qty: float
+    filled_qty: float
+    status: str
+    filled_avg_price: float | None = None
+    submitted_at: str | None = None
+    order_type: str | None = None
+    time_in_force: str | None = None
+
+    @property
+    def is_filled(self) -> bool:
+        return self.status == "filled"
+
+    @property
+    def remaining_qty(self) -> float:
+        return max(self.qty - self.filled_qty, 0.0)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 @dataclass
 class AccountState:
     """Snapshot of a paper account needed to compute a rebalance."""

@@ -22,6 +22,7 @@ from tradingpaperaccount.config import (
 from tradingpaperaccount.models import (
     AccountState,
     ExecutionReport,
+    Order,
     OrderIntent,
     OrderResult,
     Position,
@@ -44,6 +45,7 @@ __all__ = [
     "DEFAULT_CASH_BUFFER",
     "DEFAULT_MIN_ORDER_VALUE",
     "ExecutionReport",
+    "Order",
     "OrderIntent",
     "OrderResult",
     "PaperAccountConfig",

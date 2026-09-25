@@ -3,12 +3,13 @@ import json
 import pytest
 
 from tradingpaperaccount import cli
-from tradingpaperaccount.models import AccountState, Position
+from tradingpaperaccount.models import AccountState, Order, Position
 
 
 class FakeAlpacaClient:
     positions = {"AAPL": Position("AAPL", 100.0, 10_000.0, 90.0, 100.0)}
     prices = {"AAPL": 100.0, "MSFT": 200.0}
+    open_orders = []
 
     def __init__(self, api_key, secret_key, paper=True):
         self.paper = paper
@@ -18,6 +19,9 @@ class FakeAlpacaClient:
 
     def get_positions(self):
         return list(self.positions.values())
+
+    def get_open_orders(self):
+        return list(self.open_orders)
 
     def get_latest_prices(self, symbols):
         return {s: self.prices[s] for s in symbols if s in self.prices}
@@ -46,6 +50,8 @@ def fake_alpaca(monkeypatch):
     monkeypatch.setattr(client_mod, "AlpacaPaperClient", FakeAlpacaClient)
     monkeypatch.setenv("ALPACA_API_KEY", "k")
     monkeypatch.setenv("ALPACA_SECRET_KEY", "s")
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY_2", "k2")
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY_2", "s2")
     return FakeAlpacaClient
 
 
@@ -101,6 +107,26 @@ def test_status_json(fake_alpaca, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["account_number"] == "TEST"
     assert "AAPL" in payload["positions"]
+
+
+def test_fill_check_reports_open_orders(fake_alpaca, capsys):
+    fake_alpaca.open_orders = [
+        Order("o1", "MSFT", "buy", 10.0, 4.0, "partially_filled", 200.0)
+    ]
+    rc = cli.main(["fill-check", "-a", "1", "-a", "2", "--json"])
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["all_filled"] is False
+    assert [a["index"] for a in payload["accounts"]] == [1, 2]
+    assert payload["accounts"][0]["open_orders"][0]["symbol"] == "MSFT"
+
+
+def test_fill_check_all_filled(fake_alpaca, capsys):
+    fake_alpaca.open_orders = []
+    rc = cli.main(["fill-check", "-a", "1", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["all_filled"] is True
 
 
 def test_missing_credentials_returns_error(monkeypatch):

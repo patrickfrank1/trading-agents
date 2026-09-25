@@ -12,10 +12,10 @@ from typing import Any
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.requests import CryptoLatestTradeRequest, StockLatestTradeRequest
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderSide, TimeInForce
-from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
+from alpaca.trading.requests import GetOrdersRequest, MarketOrderRequest
 
-from tradingpaperaccount.models import AccountState, OrderIntent, Position
+from tradingpaperaccount.models import AccountState, Order, OrderIntent, Position
 
 
 def is_crypto_symbol(symbol: str) -> bool:
@@ -96,8 +96,30 @@ class AlpacaPaperClient:
         )
         return self._trading.submit_order(order_data=order_data)
 
-    def get_open_orders(self) -> list[Any]:
-        return list(self._trading.get_orders())
+    @staticmethod
+    def _to_order(raw: Any) -> Order:
+        def _value(field: str, default: Any = None) -> Any:
+            value = getattr(raw, field, default)
+            return getattr(value, "value", value)
+
+        filled_avg_price = _value("filled_avg_price")
+        return Order(
+            order_id=str(_value("id", "")),
+            symbol=str(_value("symbol", "")),
+            side=str(_value("side", "")),
+            qty=float(_value("qty", 0) or 0),
+            filled_qty=float(_value("filled_qty", 0) or 0),
+            status=str(_value("status", "")),
+            filled_avg_price=float(filled_avg_price) if filled_avg_price is not None else None,
+            submitted_at=str(_value("submitted_at")) if _value("submitted_at") else None,
+            order_type=str(_value("order_type", "")) or None,
+            time_in_force=str(_value("time_in_force", "")) or None,
+        )
+
+    def get_open_orders(self) -> list[Order]:
+        """Return orders that are still open (i.e. not yet fully filled)."""
+        request = GetOrdersRequest(status=QueryOrderStatus.OPEN)
+        return [self._to_order(raw) for raw in self._trading.get_orders(filter=request)]
 
     def cancel_all_orders(self) -> None:
         self._trading.cancel_orders()
