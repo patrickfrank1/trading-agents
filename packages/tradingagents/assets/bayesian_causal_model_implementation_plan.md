@@ -300,7 +300,7 @@ financial conditions and growth (wealth channel) — stability constraints activ
 
 ## 5. Analyst tool integration
 
-- **Fitting is offline.** A script (`scripts/fit_macro_model.py`, CLI-able) refits on the
+- **Fitting is offline.** A script (`packages/tradingagents/scripts/fit_macro_model.py`, CLI-able) refits on the
   latest panel and stores the posterior (NetCDF) next to the panel manifest. Not run
   inside the agent loop.
 - **New tool for the macro analyst:** `get_macro_causal_forecast(horizon_quarters=4,

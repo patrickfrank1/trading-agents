@@ -52,7 +52,7 @@ def _run_counterfactual(bundle, fits, gold_fit, shocks: str, stock_beta: float, 
     if not fits:
         return (
             "Counterfactual mode unavailable: no fitted asset regressions found.\n"
-            "Fit them offline with: `python scripts/fit_macro_model.py --model assets`."
+            "Fit them offline with: `uv run python packages/tradingagents/scripts/fit_macro_model.py --model assets`."
         )
 
     valid_names = {f for fit in fits.values() for f in fit.features}
@@ -134,7 +134,7 @@ def get_macro_causal_forecast_impl(
     """Render the causal Bayesian macro model's forward scenario report.
 
     Named scenarios and counterfactuals (``shocks``) are supported; models
-    are fitted offline (``scripts/fit_macro_model.py``) and this runs a
+    are fitted offline (``packages/tradingagents/scripts/fit_macro_model.py``) and this runs a
     posterior-predictive simulation (NumPy only — no PyMC, no network).
     """
     from tradingagents.models.macro_bayes.simulate import (
@@ -151,7 +151,7 @@ def get_macro_causal_forecast_impl(
     if bundle is None:
         return (
             "Causal Bayesian macro model not available: no quarterly panel found.\n"
-            "Build it offline with: `python scripts/fit_macro_model.py` "
+            "Build it offline with: `uv run python packages/tradingagents/scripts/fit_macro_model.py` "
             "(requires FRED_API_KEY and the optional `model` extra: pymc, arviz, pyarrow)."
         )
 
@@ -162,7 +162,7 @@ def get_macro_causal_forecast_impl(
     if not os.path.exists(model_file):
         return (
             f"Causal Bayesian macro model not available: {os.path.basename(model_file)} "
-            "not found.\nFit the model offline with: `python scripts/fit_macro_model.py` "
+            "not found.\nFit the model offline with: `uv run python packages/tradingagents/scripts/fit_macro_model.py` "
             "(models persist under ~/.tradingagents/cache/macro_models)."
         )
 
@@ -288,12 +288,12 @@ def get_macro_sensitivity() -> str:
     if bundle is None:
         return (
             "Sensitivity table unavailable: no quarterly panel found.\n"
-            "Build it offline with: `python scripts/fit_macro_model.py`."
+            "Build it offline with: `uv run python packages/tradingagents/scripts/fit_macro_model.py`."
         )
     if not fits and gold_fit is None:
         return (
             "Sensitivity table unavailable: no fitted models found.\n"
-            "Fit them offline with: `python scripts/fit_macro_model.py` "
+            "Fit them offline with: `uv run python packages/tradingagents/scripts/fit_macro_model.py` "
             "(fits the V1 gold model, the per-asset regressions, and the joint model)."
         )
     return render_sensitivity_table(fits or {}, gold_fit=gold_fit)

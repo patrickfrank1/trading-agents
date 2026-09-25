@@ -2,7 +2,7 @@ services:
   tradingagents:
     build: .
     env_file:
-      - .env
+      - ../../.env
     volumes:
       - tradingagents_data:/home/appuser/.tradingagents
     tty: true
@@ -18,7 +18,7 @@ services:
   # tradingagents-ollama:
   #   build: .
   #   env_file:
-  #     - .env
+  #     - ../../.env
   #   environment:
   #     - LLM_PROVIDER=ollama
   #   volumes:

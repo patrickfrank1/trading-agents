@@ -3,10 +3,10 @@
 Usage::
 
     # build/refresh the quarterly panel and fit both models
-    python scripts/fit_macro_model.py
+    uv run python packages/tradingagents/scripts/fit_macro_model.py
 
     # only V1 gold, fewer draws, with the OOS validation harness
-    python scripts/fit_macro_model.py --model v1 --draws 500 --validate
+    uv run python packages/tradingagents/scripts/fit_macro_model.py --model v1 --draws 500 --validate
 
 Requires FRED_API_KEY for the panel build and the optional ``model``
 extra (pymc, arviz, pyarrow). Model files are written to

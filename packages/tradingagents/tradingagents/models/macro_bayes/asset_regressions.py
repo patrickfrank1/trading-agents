@@ -8,7 +8,7 @@ regressions (Student-t, sign-informed truncated priors) mapping each
 asset's next-quarter return to same-quarter drivers.
 
 Gold is handled by :mod:`.v1_gold`; this registry covers SPX, REITs and
-Treasury bonds. Fitted offline by ``scripts/fit_macro_model.py`` and
+Treasury bonds. Fitted offline by ``packages/tradingagents/scripts/fit_macro_model.py`` and
 consumed by the ``get_macro_causal_forecast`` (counterfactual mode) and
 ``get_macro_sensitivity`` analyst tools.
 """
