@@ -114,6 +114,13 @@ bin/check_fills.sh 1 2 3        # explicit accounts
 bin/check_fills.sh --json 1 2   # machine-readable
 ```
 
+To apply a new target only after the account's current orders have filled
+(avoids double-submitting a symbol whose order is still working):
+
+```bash
+bin/rebalance_after_fill.sh <account> <weights.json> [timeout_minutes]
+```
+
 ## Library
 
 ```python
