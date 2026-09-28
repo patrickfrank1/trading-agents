@@ -88,9 +88,20 @@ class PortfolioHistory:
     base_value: float | None = None
     points: list[HistoryPoint] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        # Alpaca pads a window that starts before the account existed with
+        # zero-equity points (e.g. a young account's ``1M`` history). Drop those
+        # leading points so "start" reflects the funded balance.
+        while self.points and not self.points[0].equity:
+            self.points.pop(0)
+
     @property
     def start_equity(self) -> float | None:
-        return self.points[0].equity if self.points else None
+        """Equity at the start of the funded window, or ``None`` if empty."""
+        for point in self.points:
+            if point.equity:
+                return point.equity
+        return None
 
     @property
     def latest_equity(self) -> float | None:
@@ -101,7 +112,7 @@ class PortfolioHistory:
         """Return over the window as a fraction (0.05 == +5%)."""
         if not self.points:
             return None
-        base = self.base_value or self.points[0].equity
+        base = self.base_value or self.start_equity
         if not base:
             return None
         return (self.points[-1].equity - base) / base
