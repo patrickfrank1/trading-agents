@@ -3,7 +3,13 @@ import json
 import pytest
 
 from tradingpaperaccount import cli
-from tradingpaperaccount.models import AccountState, Order, Position
+from tradingpaperaccount.models import (
+    AccountState,
+    HistoryPoint,
+    Order,
+    PortfolioHistory,
+    Position,
+)
 
 
 class FakeAlpacaClient:
@@ -25,6 +31,20 @@ class FakeAlpacaClient:
 
     def get_latest_prices(self, symbols):
         return {s: self.prices[s] for s in symbols if s in self.prices}
+
+    def get_portfolio_history(
+        self, account="", period="1M", timeframe=None, start=None, end=None
+    ):
+        return PortfolioHistory(
+            account=str(account),
+            period=period,
+            timeframe="1D",
+            base_value=10_000.0,
+            points=[
+                HistoryPoint(1_700_000_000, "2023-11-14", 10_000.0, 0.0, 0.0),
+                HistoryPoint(1_700_086_400, "2023-11-15", 11_000.0, 1_000.0, 0.1),
+            ],
+        )
 
     def submit_order(self, intent):
         FakeAlpacaClient.positions.setdefault(
@@ -107,6 +127,27 @@ def test_status_json(fake_alpaca, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["account_number"] == "TEST"
     assert "AAPL" in payload["positions"]
+
+
+def test_performance_json(fake_alpaca, capsys):
+    rc = cli.main(["performance", "-a", "1", "--period", "1M", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["account"] == "1"
+    assert payload["period"] == "1M"
+    assert payload["base_value"] == pytest.approx(10_000.0)
+    assert payload["latest_equity"] == pytest.approx(11_000.0)
+    assert payload["total_return_pct"] == pytest.approx(0.1)
+    assert [p["date"] for p in payload["points"]][0] == "2023-11-14"
+
+
+def test_performance_human_readable(fake_alpaca, capsys):
+    rc = cli.main(["performance", "-a", "1"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Account 1" in out
+    assert "Return:" in out
+    assert "+10.00%" in out
 
 
 def test_fill_check_reports_open_orders(fake_alpaca, capsys):

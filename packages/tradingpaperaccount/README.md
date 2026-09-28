@@ -32,6 +32,7 @@ uv run tradingpaperaccount accounts --json
 uv run tradingpaperaccount status   --account 1  # balances + positions
 uv run tradingpaperaccount positions --account 1 # positions only
 uv run tradingpaperaccount positions --account 1 --json
+uv run tradingpaperaccount performance --account 1 --period 1M  # equity/P&L history
 uv run tradingpaperaccount fill-check -a 1 -a 2  # any orders still open? (exit 1 if so)
 ```
 
@@ -102,6 +103,20 @@ uv run tradingpaperaccount rebalance --account 1 --weights weights.json --execut
 
 Flags: `--cash-buffer 0.05` overrides the file/default (default `0.05`),
 `--min-order-value` (library default `1.0`) skips dust, `--json` is for agents.
+
+### Performance history
+
+`performance` returns the account's equity and P&L time series from the Alpaca
+portfolio-history endpoint (`period` is `1D`/`1W`/`1M`/`3M`/`6M`/`1A`/`all`,
+optional `--timeframe 1Min..1D`):
+
+```bash
+uv run tradingpaperaccount performance -a 2 --period 1M
+uv run tradingpaperaccount performance -a 2 --period 1A --timeframe 1D --json
+```
+
+The JSON payload has `start_equity`, `latest_equity`, `total_return_pct`, and a
+`points[]` list of `{timestamp, date, equity, profit_loss, profit_loss_pct}`.
 
 ### Post-open fill check
 

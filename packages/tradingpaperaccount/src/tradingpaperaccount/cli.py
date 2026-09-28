@@ -122,6 +122,37 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _cmd_performance(args: argparse.Namespace) -> int:
+    from tradingpaperaccount.client import AlpacaPaperClient
+
+    config = resolve_account(args.account)
+    client = AlpacaPaperClient(config.api_key, config.secret_key, paper=config.paper)
+    history = client.get_portfolio_history(
+        account=str(config.index),
+        period=args.period,
+        timeframe=args.timeframe,
+    )
+
+    if args.json:
+        _print_json(history.to_dict())
+        return EXIT_OK
+
+    start = history.start_equity
+    latest = history.latest_equity
+    ret = history.total_return_pct
+    ret_str = f"{ret:+.2%}" if ret is not None else "n/a"
+    print(
+        f"Account {config.index} | period={history.period} "
+        f"timeframe={history.timeframe or 'auto'} | {len(history.points)} point(s)"
+    )
+    print(f"  Start equity:  {start:,.2f}" if start is not None else "  Start equity:  n/a")
+    print(f"  Latest equity: {latest:,.2f}" if latest is not None else "  Latest equity: n/a")
+    print(f"  Return:        {ret_str}")
+    if not history.points:
+        print("  (no history returned for this period)")
+    return EXIT_OK
+
+
 def _cmd_fill_check(args: argparse.Namespace) -> int:
     from tradingpaperaccount.client import AlpacaPaperClient
 
@@ -411,6 +442,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_positions.add_argument("--json", action="store_true", help="machine-readable output")
     p_positions.set_defaults(func=_cmd_positions)
+
+    p_perf = sub.add_parser(
+        "performance",
+        help="show an account's equity/P&L history (Alpaca portfolio history)",
+    )
+    p_perf.add_argument(
+        "-a",
+        "--account",
+        type=int,
+        required=True,
+        choices=range(MIN_ACCOUNT_INDEX, MAX_ACCOUNT_INDEX + 1),
+        metavar=f"{{{MIN_ACCOUNT_INDEX}..{MAX_ACCOUNT_INDEX}}}",
+        help="paper account index",
+    )
+    p_perf.add_argument(
+        "-p",
+        "--period",
+        default="1M",
+        help="window: 1D, 1W, 1M, 3M, 6M, 1A, all (default 1M)",
+    )
+    p_perf.add_argument(
+        "-t",
+        "--timeframe",
+        default=None,
+        help="resolution: 1Min, 5Min, 15Min, 1H, 1D (default: Alpaca picks by period)",
+    )
+    p_perf.add_argument("--json", action="store_true", help="machine-readable output")
+    p_perf.set_defaults(func=_cmd_performance)
 
     p_rebalance = sub.add_parser(
         "rebalance", help="rebalance an account to target weights (dry-run by default)"

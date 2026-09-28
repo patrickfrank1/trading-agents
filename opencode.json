@@ -6,5 +6,12 @@
       "url": "https://mcp.context7.com/mcp",
       "enabled": true
     }
+  },
+  "permission": {
+    "bash": {
+      "*--execute*": "ask",
+      "*mirror*": "deny",
+      "*ALPACA_TRADING*": "deny"
+    }
   }
 }

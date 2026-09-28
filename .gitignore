@@ -4,6 +4,8 @@ bin/PORTFOLIO.yaml
 reports/
 logs/
 .runstate/
+.state/*
+!.state/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

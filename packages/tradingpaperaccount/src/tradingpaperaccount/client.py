@@ -7,15 +7,27 @@ qty, crypto time-in-force, latest-trade lookups) are contained here.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.requests import CryptoLatestTradeRequest, StockLatestTradeRequest
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
-from alpaca.trading.requests import GetOrdersRequest, MarketOrderRequest
+from alpaca.trading.requests import (
+    GetOrdersRequest,
+    GetPortfolioHistoryRequest,
+    MarketOrderRequest,
+)
 
-from tradingpaperaccount.models import AccountState, Order, OrderIntent, Position
+from tradingpaperaccount.models import (
+    AccountState,
+    HistoryPoint,
+    Order,
+    OrderIntent,
+    PortfolioHistory,
+    Position,
+)
 
 
 def is_crypto_symbol(symbol: str) -> bool:
@@ -57,6 +69,69 @@ class AlpacaPaperClient:
             cash=float(account.cash),
             buying_power=float(account.buying_power),
             positions=positions,
+        )
+
+    # -- performance -------------------------------------------------------
+    @staticmethod
+    def _to_history(
+        raw: Any, *, account: str, period: str, timeframe: str | None
+    ) -> PortfolioHistory:
+        def _field(name: str, default: Any) -> Any:
+            if isinstance(raw, dict):
+                return raw.get(name, default)
+            return getattr(raw, name, default)
+
+        timestamps = _field("timestamp", []) or []
+        equity = _field("equity", []) or []
+        profit_loss = _field("profit_loss", []) or []
+        profit_loss_pct = _field("profit_loss_pct", []) or []
+
+        points: list[HistoryPoint] = []
+        for index, ts in enumerate(timestamps):
+            pct = profit_loss_pct[index] if index < len(profit_loss_pct) else None
+            points.append(
+                HistoryPoint(
+                    timestamp=int(ts),
+                    date=datetime.fromtimestamp(int(ts), tz=timezone.utc).date().isoformat(),
+                    equity=float(equity[index]) if index < len(equity) else 0.0,
+                    profit_loss=(
+                        float(profit_loss[index]) if index < len(profit_loss) else 0.0
+                    ),
+                    profit_loss_pct=float(pct) if pct is not None else None,
+                )
+            )
+
+        return PortfolioHistory(
+            account=account,
+            period=period,
+            timeframe=timeframe or str(_field("timeframe", "") or ""),
+            base_value=(
+                float(_field("base_value", None))
+                if _field("base_value", None) is not None
+                else None
+            ),
+            points=points,
+        )
+
+    def get_portfolio_history(
+        self,
+        *,
+        account: str = "",
+        period: str = "1M",
+        timeframe: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> PortfolioHistory:
+        """Return the account's equity/P&L time series for ``period``.
+
+        ``timeframe`` is the resolution (``1Min``..``1D``); when omitted the
+        Alpaca default for the period applies.
+        """
+        request = GetPortfolioHistoryRequest(period=period, timeframe=timeframe, start=start, end=end)
+        raw = self._trading.get_portfolio_history(history_filter=request)
+        timeframe_str = timeframe or (getattr(raw, "timeframe", "") if not isinstance(raw, dict) else raw.get("timeframe", ""))
+        return self._to_history(
+            raw, account=account, period=period, timeframe=str(timeframe_str or "")
         )
 
     # -- market data -------------------------------------------------------

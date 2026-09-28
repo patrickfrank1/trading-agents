@@ -65,6 +65,61 @@ class AccountState:
 
 
 @dataclass(frozen=True)
+class HistoryPoint:
+    """One left-labeled data point in an account's portfolio history."""
+
+    timestamp: int
+    date: str
+    equity: float
+    profit_loss: float
+    profit_loss_pct: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class PortfolioHistory:
+    """Time series of an account's equity and P&L from the Alpaca API."""
+
+    account: str
+    period: str
+    timeframe: str
+    base_value: float | None = None
+    points: list[HistoryPoint] = field(default_factory=list)
+
+    @property
+    def start_equity(self) -> float | None:
+        return self.points[0].equity if self.points else None
+
+    @property
+    def latest_equity(self) -> float | None:
+        return self.points[-1].equity if self.points else None
+
+    @property
+    def total_return_pct(self) -> float | None:
+        """Return over the window as a fraction (0.05 == +5%)."""
+        if not self.points:
+            return None
+        base = self.base_value or self.points[0].equity
+        if not base:
+            return None
+        return (self.points[-1].equity - base) / base
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "account": self.account,
+            "period": self.period,
+            "timeframe": self.timeframe,
+            "base_value": self.base_value,
+            "start_equity": self.start_equity,
+            "latest_equity": self.latest_equity,
+            "total_return_pct": self.total_return_pct,
+            "points": [point.to_dict() for point in self.points],
+        }
+
+
+@dataclass(frozen=True)
 class OrderIntent:
     """A desired order derived from the delta between current and target value.
 

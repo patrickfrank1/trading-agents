@@ -44,6 +44,8 @@ docker compose -f packages/tradingagents/docker-compose.yml run --rm tradingagen
 
 ```bash
 uv run tradingpaperaccount accounts --json                    # configured indices
+uv run tradingpaperaccount positions -a 2 --json              # current positions
+uv run tradingpaperaccount performance -a 2 --period 1M       # equity/P&L history
 uv run tradingpaperaccount rebalance -a 2 -w weights.json     # preview (no orders)
 uv run tradingpaperaccount rebalance -a 2 -w weights.json --execute
 bin/check_fills.sh 1 2                                        # post-open fill check (exit 1 if any order open)
@@ -76,6 +78,18 @@ git config core.hooksPath .githooks
 ## opencode agents / commands
 
 - `/compare-stocks <reports-dir>` — runs the `portfolio-comparison` agent (`.opencode/agent/portfolio-comparison.md`): reads `5_portfolio/decision.md` from every report dir under the given directory (handles `run_*`/`batch_*`/`archive` groupings, latest report per ticker wins), ranks equities by investability, treats ETFs as baselines, sizes positions via a fractional-Kelly criterion from each stock's scenario table (trend/probability-of-gain dominates, expected return scales magnitude), and writes `reports/portfolio_comparison_<scope>_<YYYYMMDD>.md` with buy/sell answers, Kelly-derived NAV weightings, top-2 risks/opportunities, and 1Y/5Y expected returns per stock.
+- `/allocator [daily|monthly]` — runs the `value-allocator` agent (`.opencode/agent/value-allocator.md`): autonomously researches one new investment idea per trading day and, monthly, proposes (then, after human approval, applies) rebalances to paper accounts 2 (moderate) and 3 (high), using account 1 as a read-only baseline. Policy lives in `allocator/policy.json`, state in `.state/`. See `allocator/README.md`.
+
+## Autonomous value-investing allocator
+
+`.opencode/agent/value-allocator.md` runs under cron via `bin/allocator_daily.sh`
+and `bin/allocator_monthly.sh`. **Hard rule: the allocator (and anything running
+on the user's behalf) must never query or trade the live trading account — never
+run `tradingpaperaccount mirror`, never reference `ALPACA_TRADING_*`.** This is
+enforced in `opencode.json`/the agent permissions, by stripping those env vars in
+the runner scripts, and by the agent prompt. The agent never runs
+`rebalance --execute`; a human applies a proposal with
+`bin/allocator_approve.sh <YYYY-MM>` after a notification.
 
 No linter, typechecker, or formatter is configured in the project.
 
@@ -90,8 +104,9 @@ uv **workspace** with a virtual root (`pyproject.toml` has no `[project]`): one 
 packages/
   tradingagents/          # multi-agent framework (import packages `tradingagents` + `cli`)
   tradingpaperaccount/    # independent second package (`src/` layout)
-bin/                      # root operational scripts (batch runner, epub export) — NOT a package
-reports/  .runstate/      # runtime output (gitignored)
+bin/                      # root operational scripts (batch runner, allocator, epub export) — NOT a package
+allocator/                # autonomous value-allocator policy + design doc
+reports/  .runstate/  .state/   # runtime output (gitignored)
 .env  .env.enterprise     # shared secrets/config; loaded by cli/main.py via dotenv
 ```
 

@@ -1,0 +1,76 @@
+{
+  "universal": {
+    "long_only": true,
+    "fractional_shares": true,
+    "allowed_instruments": [
+      "global_equity",
+      "adr",
+      "reit",
+      "sector_etf",
+      "country_etf",
+      "commodity_etf",
+      "bond_etf",
+      "crypto"
+    ],
+    "disallowed": [
+      "options",
+      "leveraged_or_inverse_fund",
+      "margin_or_leverage",
+      "otc",
+      "individual_bond"
+    ],
+    "screen_red_flags": {
+      "forward_pe_max": 40,
+      "net_debt_to_ebitda_max": 4,
+      "fcf_yield_min": 0,
+      "avg_daily_volume_usd_min": 2000000,
+      "market_cap_usd_min": 300000000
+    },
+    "rebalance_band": {
+      "relative": 0.2,
+      "absolute_nav": 0.01
+    },
+    "benchmarks": ["SPY", "account_1"],
+    "read_only_accounts": [1]
+  },
+  "accounts": {
+    "2": {
+      "name": "moderate",
+      "objective": "beat SPX total return by >=2%/yr",
+      "target_vol_soft": [0.08, 0.14],
+      "target_vol_hard": 0.16,
+      "max_drawdown_tolerance": -0.2,
+      "kelly_fraction": 0.25,
+      "single_name_cap": 0.08,
+      "single_etf_cap": 0.15,
+      "crypto_cap": 0.05,
+      "sector_theme_cap": 0.3,
+      "single_country_cap": 0.25,
+      "non_usd_currency_cap": 0.3,
+      "position_count": [8, 18],
+      "deployed_equity": [0.5, 0.7],
+      "cash_floor": 0.05,
+      "turnover_cap_1way_monthly": 0.25,
+      "min_prob_positive": 0.5
+    },
+    "3": {
+      "name": "high",
+      "objective": "beat SPX total return by >=8%/yr",
+      "target_vol_soft": [0.18, 0.3],
+      "target_vol_hard": 0.35,
+      "max_drawdown_tolerance": -0.45,
+      "kelly_fraction": 0.5,
+      "single_name_cap": 0.15,
+      "single_etf_cap": 0.25,
+      "crypto_cap": 0.15,
+      "sector_theme_cap": 0.45,
+      "single_country_cap": 0.4,
+      "non_usd_currency_cap": 0.5,
+      "position_count": [6, 14],
+      "deployed_equity": [0.75, 0.95],
+      "cash_floor": 0.02,
+      "turnover_cap_1way_monthly": 0.45,
+      "min_prob_positive": 0.5
+    }
+  }
+}
