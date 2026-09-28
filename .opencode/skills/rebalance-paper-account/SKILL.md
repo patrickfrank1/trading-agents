@@ -148,6 +148,7 @@ design — the live account can only mirror a paper account.
 | `status -a N [--json]` | Balances + positions for account N. |
 | `positions -a N [--json]` | Positions for account N. |
 | `performance -a N [--period 1M] [--timeframe 1D] [--json]` | Equity/P&L history for account N. |
+| `overlap (-a A -a B \| --weights-a F --weights-b F) [--metric M] [--max-overlap F] [--json]` | Holdings overlap between two accounts or two weights files. |
 | `rebalance -a N -w FILE [--cash-buffer F] [--execute] [--json]` | Plan (dry run) or submit rebalancing orders. |
 | `mirror -a N [--cash-buffer F] [--execute] [--yes] [--json]` | Mirror paper account N's weights onto the live trading account (dry run by default; `--execute` prints before/after and asks `[y/N]`). |
 

@@ -52,6 +52,23 @@ for account in 2 3; do
 done
 
 echo
+echo "--------------------------------------------------------------"
+echo " Cross-portfolio overlap check (limit 10% NAV)"
+echo "--------------------------------------------------------------"
+if ! uv run tradingpaperaccount overlap \
+  --weights-a "${dir}/weights_2.json" \
+  --weights-b "${dir}/weights_3.json" \
+  --metric nav_overlap --max-overlap 0.10; then
+  if [ "${ALLOCATOR_ALLOW_OVERLAP:-0}" = "1" ]; then
+    echo "WARNING: overlap exceeds 10% but ALLOCATOR_ALLOW_OVERLAP=1; continuing" >&2
+  else
+    echo "refusing to execute: accounts 2 and 3 overlap by >= 10% NAV" >&2
+    echo "(set ALLOCATOR_ALLOW_OVERLAP=1 to override)" >&2
+    exit 1
+  fi
+fi
+
+echo
 printf 'Execute these rebalances on accounts 2 and 3? [y/N]: '
 read -r reply
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

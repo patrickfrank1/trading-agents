@@ -33,6 +33,11 @@
     "benchmarks": ["SPY", "account_1"],
     "read_only_accounts": [1]
   },
+  "cross_portfolio": {
+    "metric": "nav_overlap",
+    "max_overlap": 0.1,
+    "note": "Accounts 2 and 3 must share less than 10% of NAV in common tickers. nav_overlap = sum over shared tickers of min(weight_2, weight_3), with weights as fractions of NAV. Compute/verify with: tradingpaperaccount overlap --weights-a weights_2.json --weights-b weights_3.json --metric nav_overlap --max-overlap 0.10"
+  },
   "accounts": {
     "2": {
       "name": "moderate",

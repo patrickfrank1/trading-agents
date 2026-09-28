@@ -46,6 +46,7 @@ docker compose -f packages/tradingagents/docker-compose.yml run --rm tradingagen
 uv run tradingpaperaccount accounts --json                    # configured indices
 uv run tradingpaperaccount positions -a 2 --json              # current positions
 uv run tradingpaperaccount performance -a 2 --period 1M       # equity/P&L history
+uv run tradingpaperaccount overlap -a 2 -a 3                   # holdings overlap between two books
 uv run tradingpaperaccount rebalance -a 2 -w weights.json     # preview (no orders)
 uv run tradingpaperaccount rebalance -a 2 -w weights.json --execute
 bin/check_fills.sh 1 2                                        # post-open fill check (exit 1 if any order open)
@@ -89,7 +90,9 @@ run `tradingpaperaccount mirror`, never reference `ALPACA_TRADING_*`.** This is
 enforced in `opencode.json`/the agent permissions, by stripping those env vars in
 the runner scripts, and by the agent prompt. The agent never runs
 `rebalance --execute`; a human applies a proposal with
-`bin/allocator_approve.sh <YYYY-MM>` after a notification.
+`bin/allocator_approve.sh <YYYY-MM>` after a notification. Accounts 2 and 3 must
+stay distinct — `tradingpaperaccount overlap` enforces <10% NAV overlap, and the
+approval script refuses an overlapping proposal.
 
 No linter, typechecker, or formatter is configured in the project.
 

@@ -96,9 +96,11 @@ Runs on the first trading day of the month.
    (one pass) → ranked, Kelly-sized universe.
 4. **Derive two allocations** by re-applying the policy caps and Kelly fraction
    from `allocator/policy.json`: account 2 (1/4 Kelly, moderate caps), account 3
-   (1/2 Kelly, high caps). Respect the rebalance band to control churn.
+   (1/2 Kelly, high caps). Respect the rebalance band to control churn, then
+   enforce cross-portfolio distinctness (<10% NAV overlap, §6) by using disjoint
+   name sets and verifying with `tradingpaperaccount overlap`.
 5. **Write** `.state/proposals/<YYYY-MM>/weights_2.json`, `weights_3.json`, and
-   `PROPOSAL.md` (diffs, orders, rationale, risks).
+   `PROPOSAL.md` (diffs, orders, rationale, risks, measured overlap).
 6. **Dry-run** `rebalance -a 2|3 -w … --json` and attach the projected orders.
 7. **Notify** (`bin/allocator_notify.sh`) that a proposal awaits approval and
    **stop**. No `--execute` is ever run by the agent.
@@ -142,14 +144,38 @@ the hard cap.
 
 Benchmarks: SPY total return and **account 1** (live baseline).
 
+### Cross-portfolio distinctness
+
+Accounts 2 and 3 must be genuinely different books: their holdings may overlap
+by **less than 10% of NAV**. The metric is `nav_overlap = Σ min(w₂, w₃)` over
+shared tickers (weights as NAV fractions); it is computed and enforced
+deterministically by the CLI:
+
+```bash
+uv run tradingpaperaccount overlap -a 2 -a 3                  # current holdings
+uv run tradingpaperaccount overlap \
+  --weights-a weights_2.json --weights-b weights_3.json \
+  --metric nav_overlap --max-overlap 0.10                     # a proposal
+```
+
+The monthly agent builds the two books from disjoint name sets and must get this
+check to pass before notifying; `bin/allocator_approve.sh` re-runs it and refuses
+to execute an overlapping proposal (`ALLOCATOR_ALLOW_OVERLAP=1` overrides).
+
 ## 7. Scheduling (cron)
 
+Installed in the user crontab (system timezone is Europe/Zurich, which maps the
+ET times year-round):
+
 ```
-# daily, ~07:00 ET, weekdays
-0 11 * * 1-5  cd /home/pafrank/coding/trading-agents && bin/allocator_daily.sh  >> .state/logs/daily.log 2>&1
-# monthly, first trading day ~09:35 ET (approval happens out of band afterwards)
-35 13 1-7 * *  cd /home/pafrank/coding/trading-agents && bin/allocator_monthly.sh >> .state/logs/monthly.log 2>&1
+# daily idea, 07:00 ET (13:00 Zurich), weekdays
+0 13 * * 1-5  cd /home/pafrank/coding/trading-agents && bin/allocator_daily.sh  >> .state/logs/daily.log 2>&1
+# monthly proposal, first weekday of the month, 09:35 ET (15:35 Zurich)
+35 15 1-7 * * cd /home/pafrank/coding/trading-agents && bin/allocator_monthly.sh >> .state/logs/monthly.log 2>&1
 ```
+
+`bin/allocator_monthly.sh` self-limits to the first weekday and is idempotent per
+month.
 
 The monthly cron only produces a proposal and notifies; execution is manual via
 `bin/allocator_approve.sh`.

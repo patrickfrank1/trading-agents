@@ -33,6 +33,12 @@ from tradingpaperaccount.models import (
     ProjectedPosition,
     RebalancePlan,
 )
+from tradingpaperaccount.overlap import (
+    DEFAULT_METRIC,
+    OverlapResult,
+    metric_value,
+    portfolio_overlap,
+)
 from tradingpaperaccount.rebalance import (
     DEFAULT_CASH_BUFFER,
     DEFAULT_MIN_ORDER_VALUE,
@@ -50,9 +56,11 @@ __all__ = [
     "AccountState",
     "ConfigError",
     "DEFAULT_CASH_BUFFER",
+    "DEFAULT_METRIC",
     "DEFAULT_MIN_ORDER_VALUE",
     "ExecutionReport",
     "HistoryPoint",
+    "OverlapResult",
     "Order",
     "OrderIntent",
     "OrderResult",
@@ -70,7 +78,9 @@ __all__ = [
     "implied_cash_buffer",
     "list_paper_accounts",
     "load_weights_file",
+    "metric_value",
     "mirror_weights",
+    "portfolio_overlap",
     "resolve_account",
     "resolve_trading_account",
     "validate_weights",

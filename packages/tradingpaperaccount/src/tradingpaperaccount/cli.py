@@ -200,6 +200,69 @@ def _cmd_fill_check(args: argparse.Namespace) -> int:
     return EXIT_ERROR if any_open else EXIT_OK
 
 
+def _weights_from_account(index: int) -> tuple[dict[str, float], str]:
+    from tradingpaperaccount.client import AlpacaPaperClient
+
+    config = resolve_account(index)
+    client = AlpacaPaperClient(config.api_key, config.secret_key, paper=config.paper)
+    state = client.get_account_state()
+    if not state.equity:
+        return {}, f"account {index}"
+    weights = {
+        symbol: position.market_value / state.equity
+        for symbol, position in state.positions.items()
+    }
+    return weights, f"account {index}"
+
+
+def _cmd_overlap(args: argparse.Namespace) -> int:
+    from tradingpaperaccount.overlap import DEFAULT_METRIC, metric_value, portfolio_overlap
+
+    use_files = bool(args.weights_a or args.weights_b)
+    if use_files:
+        if not (args.weights_a and args.weights_b):
+            print("error: --weights-a and --weights-b must be given together", file=sys.stderr)
+            return EXIT_ERROR
+        weights_a, _ = load_weights_file(args.weights_a)
+        weights_b, _ = load_weights_file(args.weights_b)
+        label_a, label_b = args.weights_a, args.weights_b
+    else:
+        if not args.accounts or len(args.accounts) != 2:
+            print("error: give two -a accounts or --weights-a/--weights-b", file=sys.stderr)
+            return EXIT_ERROR
+        weights_a, label_a = _weights_from_account(args.accounts[0])
+        weights_b, label_b = _weights_from_account(args.accounts[1])
+
+    result = portfolio_overlap(weights_a, weights_b)
+    metric = args.metric or DEFAULT_METRIC
+    value = metric_value(result, metric)
+    # "less than max_overlap" is the rule, so reaching the limit fails.
+    exceeded = args.max_overlap is not None and value >= args.max_overlap
+
+    payload = {
+        "a": label_a,
+        "b": label_b,
+        "metric": metric,
+        "value": value,
+        "max_overlap": args.max_overlap,
+        "exceeded": exceeded,
+        "overlap": result.to_dict(),
+    }
+    if args.json:
+        _print_json(payload)
+        return EXIT_ERROR if exceeded else EXIT_OK
+
+    print(f"Overlap {label_a} <-> {label_b}: {value:.2%} ({metric})")
+    print(f"  shared positions ({len(result.shared)}): {', '.join(result.shared) or '(none)'}")
+    print(f"  holdings: a={result.count_a} b={result.count_b} union={result.union_count}")
+    print(f"  nav_overlap={result.nav_overlap:.2%} invested_overlap={result.invested_overlap:.2%} "
+          f"jaccard={result.jaccard:.2%} shared/smaller={result.shared_fraction_smaller:.2%}")
+    if args.max_overlap is not None:
+        status = "EXCEEDED" if exceeded else "within limit"
+        print(f"  limit {args.max_overlap:.2%}: {status}")
+    return EXIT_ERROR if exceeded else EXIT_OK
+
+
 def _cmd_rebalance(args: argparse.Namespace) -> int:
     from tradingpaperaccount.client import AlpacaPaperClient
     from tradingpaperaccount.executor import RebalanceExecutor
@@ -470,6 +533,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_perf.add_argument("--json", action="store_true", help="machine-readable output")
     p_perf.set_defaults(func=_cmd_performance)
+
+    p_overlap = sub.add_parser(
+        "overlap",
+        help="measure holdings overlap between two accounts or two weights files",
+    )
+    p_overlap.add_argument(
+        "-a",
+        "--account",
+        type=int,
+        action="append",
+        dest="accounts",
+        choices=range(MIN_ACCOUNT_INDEX, MAX_ACCOUNT_INDEX + 1),
+        metavar=f"{{{MIN_ACCOUNT_INDEX}..{MAX_ACCOUNT_INDEX}}}",
+        help="paper account index (give exactly two)",
+    )
+    p_overlap.add_argument("--weights-a", help="weights JSON for the first portfolio")
+    p_overlap.add_argument("--weights-b", help="weights JSON for the second portfolio")
+    p_overlap.add_argument(
+        "--metric",
+        default=None,
+        choices=["nav_overlap", "invested_overlap", "jaccard", "shared_fraction_smaller"],
+        help="overlap metric to report/threshold (default nav_overlap)",
+    )
+    p_overlap.add_argument(
+        "--max-overlap",
+        type=float,
+        default=None,
+        help="exit non-zero if the metric reaches or exceeds this fraction (e.g. 0.10)",
+    )
+    p_overlap.add_argument("--json", action="store_true", help="machine-readable output")
+    p_overlap.set_defaults(func=_cmd_overlap)
 
     p_rebalance = sub.add_parser(
         "rebalance", help="rebalance an account to target weights (dry-run by default)"

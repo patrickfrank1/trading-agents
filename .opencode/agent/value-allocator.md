@@ -142,23 +142,39 @@ events.
    to avoid churn, enforce the turnover caps, and drop any name with
    `p < 0.5` or expected 1Y return ≤ 0 to weight 0. Run the portfolio-vol check
    and scale the book down if estimated vol exceeds the hard cap.
-5. **Write proposals** to `.state/proposals/<YYYY-MM>/`:
-   - `weights_2.json`, `weights_3.json` (symbol → weight, with `cash_buffer`);
-   - `PROPOSAL.md` — per-account diff vs current, each add/drop/reweight/keep
-     with a one-line rationale, top risks, turnover used, and benchmark context
-     (SPY and account 1).
-6. **Dry-run** and capture the orders:
+5. **Enforce cross-portfolio distinctness.** Accounts 2 and 3 must be genuinely
+   different books: their holdings may overlap by **less than 10% of NAV**
+   (`cross_portfolio` in `policy.json`). Build them from *disjoint* name sets —
+   when account 3 would hold a name already in account 2, use the next-best
+   non-overlapping candidate instead (this is the one hard rule that may pull a
+   name down the ranking). Draft `weights_2.json` and `weights_3.json`, then verify:
+   ```bash
+   uv run tradingpaperaccount overlap \
+     --weights-a .state/proposals/<YYYY-MM>/weights_2.json \
+     --weights-b .state/proposals/<YYYY-MM>/weights_3.json \
+     --metric nav_overlap --max-overlap 0.10
+   ```
+   If it exits non-zero, swap the shared names for the next-best disjoint
+   candidates, re-write both weight files, and re-run until it passes.
+6. **Write `PROPOSAL.md`** to `.state/proposals/<YYYY-MM>/`: per-account diff vs
+   current, each add/drop/reweight/keep with a one-line rationale, top risks,
+   turnover used, benchmark context (SPY and account 1), and the **measured
+   overlap** (must be < 10%).
+7. **Dry-run** and capture the orders:
    ```bash
    uv run tradingpaperaccount rebalance -a 2 -w .state/proposals/<YYYY-MM>/weights_2.json --json
    uv run tradingpaperaccount rebalance -a 3 -w .state/proposals/<YYYY-MM>/weights_3.json --json
    ```
    Append the projected orders into `PROPOSAL.md`.
-7. Append a `proposed` entry to `decisions.jsonl` and notify that approval is
+8. Append a `proposed` entry to `decisions.jsonl` and notify that approval is
    pending. **Stop — do not execute.**
 
 ## Guardrails
 
 - Long-only unless `policy.json` says otherwise; fractional shares are fine.
+- **Accounts 2 and 3 must stay distinct**: `nav_overlap` (shared NAV) < 10%.
+  Never let both books converge onto the same top names; when in doubt prefer
+  the next disjoint candidate. This constraint outranks a marginal ranking edge.
 - Disallowed instruments: options, leveraged/inverse funds, margin/leverage,
   OTC, individual bonds. Crypto only within its cap.
 - Never fabricate prices, weights, or report contents. Every number must trace

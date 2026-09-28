@@ -117,6 +117,23 @@ uv run tradingpaperaccount performance -a 2 --period 1A --timeframe 1D --json
 
 The JSON payload has `start_equity`, `latest_equity`, `total_return_pct`, and a
 `points[]` list of `{timestamp, date, equity, profit_loss, profit_loss_pct}`.
+Leading zero-equity points (Alpaca pads windows that begin before an account
+existed) are dropped.
+
+### Cross-portfolio overlap
+
+`overlap` measures how much two books have in common, either from live accounts
+or from two weights files. `nav_overlap` is the sum over shared tickers of the
+smaller NAV weight (so `0.10` means 10% of NAV is duplicated):
+
+```bash
+uv run tradingpaperaccount overlap -a 2 -a 3
+uv run tradingpaperaccount overlap --weights-a weights_2.json --weights-b weights_3.json \
+  --metric nav_overlap --max-overlap 0.10 --json   # exit 1 if over the limit
+```
+
+Other metrics: `invested_overlap` (normalise each book to its invested total),
+`jaccard`, `shared_fraction_smaller`.
 
 ### Post-open fill check
 
