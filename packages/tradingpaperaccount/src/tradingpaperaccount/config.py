@@ -11,6 +11,10 @@ unnumbered names so a single-account setup keeps working:
 
 ``ALPACA_API_KEY_<n>`` / ``ALPACA_SECRET_KEY_<n>`` are also accepted.
 
+The real (live) trading account is configured separately under
+``ALPACA_TRADING_API_KEY`` / ``ALPACA_TRADING_SECRET_KEY`` and is only ever
+used to mirror a paper account's weights (see the ``mirror`` CLI command).
+
 Alpaca has no API to create paper accounts; create them in the dashboard and
 put their keys in the environment (e.g. the repo's ``.env``).
 """
@@ -26,6 +30,9 @@ from typing import Any
 
 MIN_ACCOUNT_INDEX = 1
 MAX_ACCOUNT_INDEX = 3
+
+TRADING_API_KEY_ENV = "ALPACA_TRADING_API_KEY"
+TRADING_SECRET_KEY_ENV = "ALPACA_TRADING_SECRET_KEY"
 
 
 class ConfigError(ValueError):
@@ -82,6 +89,22 @@ class PaperAccountSummary:
         }
 
 
+@dataclass(frozen=True)
+class TradingAccountConfig:
+    """Credentials for the real (live) Alpaca trading account.
+
+    Always ``paper=False``: this account is the mirror target and is never a
+    source of target weights.
+    """
+
+    api_key: str
+    secret_key: str
+    paper: bool = False
+
+    def __repr__(self) -> str:  # never leak the secret
+        return f"TradingAccountConfig(api_key='***', paper={self.paper})"
+
+
 def env_credentials(
     index: int,
     env: Mapping[str, str] | None = None,
@@ -123,6 +146,25 @@ def resolve_account(
     if not api_key or not secret_key:
         raise ConfigError(_missing_credentials_message(index))
     return PaperAccountConfig(index=index, api_key=api_key, secret_key=secret_key)
+
+
+def resolve_trading_account(
+    env: Mapping[str, str] | None = None,
+) -> TradingAccountConfig:
+    """Resolve the real trading account credentials from the environment.
+
+    Reads ``ALPACA_TRADING_API_KEY`` / ``ALPACA_TRADING_SECRET_KEY``. The
+    returned config is always live (``paper=False``).
+    """
+    env = env if env is not None else os.environ
+    api_key = env.get(TRADING_API_KEY_ENV)
+    secret_key = env.get(TRADING_SECRET_KEY_ENV)
+    if not api_key or not secret_key:
+        raise ConfigError(
+            f"no credentials for the trading account; set {TRADING_API_KEY_ENV} "
+            f"and {TRADING_SECRET_KEY_ENV}"
+        )
+    return TradingAccountConfig(api_key=api_key, secret_key=secret_key)
 
 
 def configured_accounts(env: Mapping[str, str] | None = None) -> list[int]:

@@ -49,6 +49,17 @@ uv run tradingpaperaccount rebalance -a 2 -w weights.json --execute
 bin/check_fills.sh 1 2                                        # post-open fill check (exit 1 if any order open)
 ```
 
+Live trading: `mirror` copies a paper account's weights onto the real account
+configured under `ALPACA_TRADING_API_KEY` / `ALPACA_TRADING_SECRET_KEY` (always
+live). It prints the current and post-rebalance positions before any trade and
+requires `--execute` plus `[y/N]` confirmation (`--yes` skips the prompt for
+automation):
+
+```bash
+uv run tradingpaperaccount mirror -a 2                        # preview (no orders)
+uv run tradingpaperaccount mirror -a 2 --execute             # confirm at the prompt
+```
+
 ## opencode agents / commands
 
 - `/compare-stocks <reports-dir>` — runs the `portfolio-comparison` agent (`.opencode/agent/portfolio-comparison.md`): reads `5_portfolio/decision.md` from every report dir under the given directory (handles `run_*`/`batch_*`/`archive` groupings, latest report per ticker wins), ranks equities by investability, treats ETFs as baselines, sizes positions via a fractional-Kelly criterion from each stock's scenario table (trend/probability-of-gain dominates, expected return scales magnitude), and writes `reports/portfolio_comparison_<scope>_<YYYYMMDD>.md` with buy/sell answers, Kelly-derived NAV weightings, top-2 risks/opportunities, and 1Y/5Y expected returns per stock.

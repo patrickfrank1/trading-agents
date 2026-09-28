@@ -142,3 +142,109 @@ def test_invalid_weights_file(fake_alpaca, tmp_path):
     bad.write_text("{not json")
     rc = cli.main(["rebalance", "--account", "1", "--weights", str(bad)])
     assert rc == 1
+
+
+class FakeMirrorClient:
+    """One fake for both roles: paper when ``paper=True``, live otherwise."""
+
+    submitted = []
+
+    def __init__(self, api_key, secret_key, paper=True):
+        self.paper = paper
+
+    def get_account_state(self):
+        if self.paper:
+            positions = {
+                "AAPL": Position("AAPL", 50.0, 5_000.0, 90.0, 100.0),
+                "MSFT": Position("MSFT", 20.0, 4_000.0, 190.0, 200.0),
+            }
+            return AccountState("PAPER", 10_000.0, 1_000.0, 1_000.0, positions)
+        positions = {"TSLA": Position("TSLA", 100.0, 10_000.0, 100.0, 100.0)}
+        return AccountState("LIVE", 20_000.0, 10_000.0, 20_000.0, positions)
+
+    def get_latest_prices(self, symbols):
+        prices = {"AAPL": 100.0, "MSFT": 200.0, "TSLA": 100.0}
+        return {s: prices[s] for s in symbols if s in prices}
+
+    def submit_order(self, intent):
+        FakeMirrorClient.submitted.append(intent)
+
+        class _Order:
+            id = "o1"
+            status = "accepted"
+
+        return _Order()
+
+
+@pytest.fixture
+def fake_mirror(monkeypatch):
+    import tradingpaperaccount.client as client_mod
+
+    monkeypatch.setattr(client_mod, "AlpacaPaperClient", FakeMirrorClient)
+    FakeMirrorClient.submitted = []
+    monkeypatch.setenv("ALPACA_API_KEY", "paper-key")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "paper-secret")
+    monkeypatch.setenv("ALPACA_TRADING_API_KEY", "trade-key")
+    monkeypatch.setenv("ALPACA_TRADING_SECRET_KEY", "trade-secret")
+    return FakeMirrorClient
+
+
+def test_mirror_dry_run_derives_weights_from_paper(fake_mirror, capsys):
+    rc = cli.main(["mirror", "-a", "1", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["dry_run"] is True
+    assert payload["weights"] == {"AAPL": 0.5, "MSFT": 0.4}
+    assert payload["cash_buffer"] == pytest.approx(0.1)
+    projected = {p["symbol"]: p for p in payload["plan"]["projected_positions"]}
+    assert projected["TSLA"]["projected_qty"] == pytest.approx(0.0)
+    assert projected["AAPL"]["projected_qty"] == pytest.approx(100.0)
+    assert fake_mirror.submitted == []
+
+
+def test_mirror_dry_run_prints_before_and_after(fake_mirror, capsys):
+    rc = cli.main(["mirror", "-a", "1"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Current positions" in out
+    assert "Positions after rebalance" in out
+    assert "TSLA" in out
+    assert "Pass --execute" in out
+
+
+def test_mirror_execute_requires_confirmation(fake_mirror, monkeypatch, capsys):
+    def _eof(*args, **kwargs):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", _eof)
+    rc = cli.main(["mirror", "-a", "1", "--execute"])
+    assert rc == 1
+    assert fake_mirror.submitted == []
+    captured = capsys.readouterr()
+    assert "aborted" in captured.err
+    # The before/after positions are shown before the prompt.
+    assert "Positions after rebalance" in captured.out
+
+
+def test_mirror_execute_with_yes_submits(fake_mirror, capsys):
+    rc = cli.main(["mirror", "-a", "1", "--execute", "--yes", "--json"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["dry_run"] is False
+    assert len(payload["results"]) == 3
+    assert all(r["ok"] for r in payload["results"])
+    assert [i.symbol for i in fake_mirror.submitted] == ["TSLA", "AAPL", "MSFT"]
+
+
+def test_mirror_execute_reports_submitted(fake_mirror, capsys):
+    rc = cli.main(["mirror", "-a", "1", "--execute", "--yes"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Submitted 3/3 order(s)" in out
+
+
+def test_mirror_missing_trading_credentials(fake_mirror, monkeypatch):
+    monkeypatch.delenv("ALPACA_TRADING_API_KEY", raising=False)
+    monkeypatch.delenv("ALPACA_TRADING_SECRET_KEY", raising=False)
+    rc = cli.main(["mirror", "-a", "1"])
+    assert rc == 1

@@ -6,6 +6,9 @@ Given a mapping of `ticker -> weight`, it computes the exact set of market order
 that move the account to those weights, keeping a configurable cash buffer.
 Up to three paper accounts are supported and selected by index.
 
+It can also **mirror** a paper account's weighting onto a real (live) Alpaca
+trading account, with an explicit before/after preview and confirmation step.
+
 This is a thin, testable library plus a CLI, not an MCP server: the rebalance
 math is pure Python and unit-tested, and only `client.py` imports `alpaca-py`.
 An agent can drive it through the CLI.
@@ -56,6 +59,12 @@ account 3: ALPACA_PAPER_API_KEY_3 / ALPACA_PAPER_SECRET_KEY_3
 ```
 
 `ALPACA_API_KEY_<n>` / `ALPACA_SECRET_KEY_<n>` are also accepted.
+
+The real (live) trading account for `mirror` is separate and always live:
+
+```
+trading:  ALPACA_TRADING_API_KEY / ALPACA_TRADING_SECRET_KEY
+```
 
 ## Weights file
 
@@ -120,6 +129,43 @@ To apply a new target only after the account's current orders have filled
 ```bash
 bin/rebalance_after_fill.sh <account> <weights.json> [timeout_minutes]
 ```
+
+## Mirroring a paper account into the real trading account
+
+`mirror` copies the **weighting** of a paper account onto the real (live)
+Alpaca trading account configured under `ALPACA_TRADING_API_KEY` /
+`ALPACA_TRADING_SECRET_KEY`. It is the only command that touches the live
+account, and it cannot be given arbitrary weights: the paper account is always
+the source, so the live book can only ever reflect a book you already ran on
+paper.
+
+```bash
+# preview: prints the live account's current positions AND the positions it
+# would hold after the mirror (submits nothing)
+uv run tradingpaperaccount mirror --account 1
+
+# same, machine-readable
+uv run tradingpaperaccount mirror --account 1 --json
+
+# submit: prints the before/after positions, then asks for confirmation
+uv run tradingpaperaccount mirror --account 1 --execute
+
+# non-interactive: skip the prompt (positions are still printed)
+uv run tradingpaperaccount mirror --account 1 --execute --yes
+```
+
+How the target is derived:
+
+- each symbol's target weight is its paper-account `market_value / equity`;
+- the live account's cash buffer defaults to the paper account's uninvested
+  share (`1 - gross_exposure / equity`), so the mirror is exact. Override with
+  `--cash-buffer`.
+- `--execute` always prints the live account's current positions and its
+  projected post-rebalance positions before asking `[y/N]`. A non-`y` answer
+  (or no input) aborts without submitting anything.
+
+`mirror` is a live-money operation: the dry run is the default, and nothing is
+submitted until `--execute` plus confirmation.
 
 ## Library
 

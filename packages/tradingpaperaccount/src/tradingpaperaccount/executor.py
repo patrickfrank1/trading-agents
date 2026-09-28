@@ -61,6 +61,15 @@ class RebalanceExecutor:
             cash_buffer=cash_buffer,
             min_order_value=min_order_value,
         )
+        return self.execute_plan(plan, dry_run=dry_run)
+
+    def execute_plan(self, plan: RebalancePlan, *, dry_run: bool = True) -> ExecutionReport:
+        """Submit a pre-computed plan unless ``dry_run``.
+
+        Taking the plan directly lets a caller show it for confirmation and then
+        execute exactly that plan, without re-snapshotting (and potentially
+        re-pricing) the account in between.
+        """
         if dry_run:
             return ExecutionReport(plan=plan, dry_run=True)
 

@@ -90,6 +90,26 @@ class OrderIntent:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class ProjectedPosition:
+    """A position before and after the plan is applied.
+
+    ``projected_*`` reflects what the position becomes once every order in the
+    plan fills; skipped dust deltas are left at their current level.
+    """
+
+    symbol: str
+    current_qty: float
+    current_value: float
+    projected_qty: float
+    projected_value: float
+    target_value: float
+    is_crypto: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 @dataclass
 class RebalancePlan:
     """A full, ordered set of orders that moves the account to target weights.
@@ -104,6 +124,7 @@ class RebalancePlan:
     target_cash: float
     orders: list[OrderIntent] = field(default_factory=list)
     skipped: list[dict[str, Any]] = field(default_factory=list)
+    projected_positions: list[ProjectedPosition] = field(default_factory=list)
 
     @property
     def sell_orders(self) -> list[OrderIntent]:
@@ -121,6 +142,7 @@ class RebalancePlan:
             "target_cash": self.target_cash,
             "orders": [o.to_dict() for o in self.orders],
             "skipped": self.skipped,
+            "projected_positions": [p.to_dict() for p in self.projected_positions],
         }
 
 

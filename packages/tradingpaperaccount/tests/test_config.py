@@ -7,6 +7,7 @@ from tradingpaperaccount.config import (
     configured_accounts,
     parse_weights,
     resolve_account,
+    resolve_trading_account,
 )
 
 
@@ -75,4 +76,23 @@ def test_parse_weights_invalid():
 
 def test_repr_hides_secret():
     config = resolve_account(1, {"ALPACA_API_KEY": "k", "ALPACA_SECRET_KEY": "supersecret"})
+    assert "supersecret" not in repr(config)
+
+
+def test_resolve_trading_account_is_live():
+    env = {"ALPACA_TRADING_API_KEY": "tk", "ALPACA_TRADING_SECRET_KEY": "ts"}
+    config = resolve_trading_account(env)
+    assert (config.api_key, config.secret_key) == ("tk", "ts")
+    assert config.paper is False
+
+
+def test_resolve_trading_account_missing_raises():
+    with pytest.raises(ConfigError):
+        resolve_trading_account({})
+
+
+def test_trading_repr_hides_secret():
+    config = resolve_trading_account(
+        {"ALPACA_TRADING_API_KEY": "k", "ALPACA_TRADING_SECRET_KEY": "supersecret"}
+    )
     assert "supersecret" not in repr(config)

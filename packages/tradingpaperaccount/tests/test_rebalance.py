@@ -4,6 +4,8 @@ from tradingpaperaccount.models import AccountState, Position
 from tradingpaperaccount.rebalance import (
     RebalanceError,
     compute_rebalance_plan,
+    implied_cash_buffer,
+    mirror_weights,
     validate_weights,
 )
 
@@ -135,3 +137,56 @@ def test_missing_price_raises():
 def test_zero_equity_raises():
     with pytest.raises(RebalanceError):
         compute_rebalance_plan(make_account(equity=0.0), {"AAPL": 1.0}, {"AAPL": 100.0})
+
+
+def test_mirror_weights_scales_market_value_by_equity():
+    positions = {
+        "AAPL": Position("AAPL", 50.0, 5_000.0, 90.0, 100.0),
+        "MSFT": Position("MSFT", 20.0, 4_000.0, 190.0, 200.0),
+    }
+    weights = mirror_weights(make_account(equity=10_000.0, positions=positions))
+    assert weights == {"AAPL": 0.5, "MSFT": 0.4}
+
+
+def test_implied_cash_buffer_is_uninvested_share():
+    positions = {"AAPL": Position("AAPL", 90.0, 9_000.0, 90.0, 100.0)}
+    account = make_account(equity=10_000.0, positions=positions)
+    assert implied_cash_buffer(account) == pytest.approx(0.1)
+
+
+def test_mirror_with_implied_buffer_reproduces_source_allocation():
+    positions = {
+        "AAPL": Position("AAPL", 50.0, 5_000.0, 90.0, 100.0),
+        "MSFT": Position("MSFT", 20.0, 4_000.0, 190.0, 200.0),
+    }
+    source = make_account(equity=10_000.0, positions=positions)
+    target = make_account(equity=20_000.0)
+    plan = compute_rebalance_plan(
+        target,
+        mirror_weights(source),
+        {"AAPL": 100.0, "MSFT": 200.0},
+        cash_buffer=implied_cash_buffer(source),
+    )
+    by_symbol = {o.symbol: o for o in plan.orders}
+    assert by_symbol["AAPL"].target_value == pytest.approx(10_000.0)
+    assert by_symbol["MSFT"].target_value == pytest.approx(8_000.0)
+
+
+def test_mirror_weights_without_positions_raises():
+    with pytest.raises(RebalanceError):
+        mirror_weights(make_account(positions={}))
+
+
+def test_projected_positions_reflect_orders():
+    positions = {"AAPL": Position("AAPL", 100.0, 10_000.0, 90.0, 100.0)}
+    plan = compute_rebalance_plan(
+        make_account(positions=positions),
+        {"MSFT": 1.0},
+        {"AAPL": 100.0, "MSFT": 200.0},
+        cash_buffer=0.0,
+    )
+    projected = {p.symbol: p for p in plan.projected_positions}
+    assert projected["AAPL"].projected_qty == pytest.approx(0.0)
+    assert projected["AAPL"].current_qty == pytest.approx(100.0)
+    assert projected["MSFT"].projected_qty == pytest.approx(50.0)
+    assert projected["MSFT"].current_qty == pytest.approx(0.0)

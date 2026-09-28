@@ -20,8 +20,14 @@ from tradingpaperaccount.config import (
     list_paper_accounts,
     load_weights_file,
     resolve_account,
+    resolve_trading_account,
 )
-from tradingpaperaccount.rebalance import DEFAULT_CASH_BUFFER, RebalanceError
+from tradingpaperaccount.rebalance import (
+    DEFAULT_CASH_BUFFER,
+    RebalanceError,
+    implied_cash_buffer,
+    mirror_weights,
+)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -214,6 +220,159 @@ def _cmd_rebalance(args: argparse.Namespace) -> int:
     return EXIT_OK if not report.failed else EXIT_ERROR
 
 
+def _confirm_mirror(source_index: int, plan: Any) -> bool:
+    """Ask the user to confirm live orders, keeping JSON stdout clean."""
+    prompt = (
+        f"Submit {len(plan.orders)} order(s) to trading account {plan.account} "
+        f"mirroring paper account {source_index}? [y/N]: "
+    )
+    sys.stderr.write(prompt)
+    sys.stderr.flush()
+    try:
+        reply = input()
+    except EOFError:
+        return False
+    return reply.strip().lower() in {"y", "yes"}
+
+
+def _print_mirror_preview(
+    source_index: int,
+    plan: Any,
+    cash_buffer: float,
+    *,
+    stream: Any = None,
+) -> None:
+    """Print the live account's current and projected positions, plus orders.
+
+    Guardrail: this is always called *before* any order is submitted, so the
+    user sees what will change before confirming.
+    """
+    stream = stream if stream is not None else sys.stdout
+    print(
+        f"Mirror paper account {source_index} -> trading account {plan.account}",
+        file=stream,
+    )
+    print(
+        f"  Equity: {plan.equity:,.2f} | cash buffer {cash_buffer:.2%} "
+        f"(target cash {plan.target_cash:,.2f})",
+        file=stream,
+    )
+
+    print("  Current positions:", file=stream)
+    if not plan.projected_positions:
+        print("    (none)", file=stream)
+    for proj in plan.projected_positions:
+        print(
+            f"    {proj.symbol:<12} qty={proj.current_qty:<14.6f} "
+            f"value={proj.current_value:,.2f}",
+            file=stream,
+        )
+
+    print("  Positions after rebalance:", file=stream)
+    if not plan.projected_positions:
+        print("    (none)", file=stream)
+    for proj in plan.projected_positions:
+        delta = proj.projected_qty - proj.current_qty
+        marker = f" (delta {delta:+,.6f})" if delta else ""
+        print(
+            f"    {proj.symbol:<12} qty={proj.projected_qty:<14.6f} "
+            f"value={proj.projected_value:,.2f}{marker}",
+            file=stream,
+        )
+
+    if not plan.orders:
+        print("  No orders required.", file=stream)
+    else:
+        print(f"  {len(plan.orders)} order(s):", file=stream)
+        for order in plan.orders:
+            print(
+                f"    {order.side.upper():<4} {order.symbol:<12} "
+                f"qty={order.qty:<14.6f} notional={order.notional:,.2f} "
+                f"(target {order.target_value:,.2f})",
+                file=stream,
+            )
+    if plan.skipped:
+        print(f"  Skipped {len(plan.skipped)} delta(s) below min order value.", file=stream)
+
+
+def _print_mirror_result(report: Any) -> None:
+    if not report.results:
+        print("  No orders submitted.")
+        return
+    print(f"  Submitted {len(report.submitted)}/{len(report.results)} order(s):")
+    for result in report.submitted:
+        print(
+            f"    OK   {result.intent.side.upper():<4} {result.intent.symbol:<12} "
+            f"qty={result.intent.qty:<14.6f} status={result.status}"
+        )
+    for result in report.failed:
+        print(
+            f"    FAIL {result.intent.symbol}: {result.error}",
+            file=sys.stderr,
+        )
+
+
+def _cmd_mirror(args: argparse.Namespace) -> int:
+    from tradingpaperaccount.client import AlpacaPaperClient
+    from tradingpaperaccount.executor import RebalanceExecutor
+
+    source_config = resolve_account(args.account)
+    source_client = AlpacaPaperClient(
+        source_config.api_key, source_config.secret_key, paper=source_config.paper
+    )
+    source_state = source_client.get_account_state()
+    weights = mirror_weights(source_state)
+
+    if args.cash_buffer is not None:
+        cash_buffer = args.cash_buffer
+    else:
+        cash_buffer = implied_cash_buffer(source_state)
+
+    trading_config = resolve_trading_account()
+    trading_client = AlpacaPaperClient(
+        trading_config.api_key, trading_config.secret_key, paper=trading_config.paper
+    )
+    executor = RebalanceExecutor(trading_client)
+    plan = executor.plan(weights, cash_buffer=cash_buffer)
+
+    # Guardrail: show current and post-rebalance positions before any trade.
+    # With --json, send the human-readable preview to stderr so stdout stays
+    # valid JSON.
+    _print_mirror_preview(
+        source_config.index,
+        plan,
+        cash_buffer,
+        stream=sys.stderr if args.json else sys.stdout,
+    )
+
+    if args.execute and plan.orders and not args.yes:
+        if not _confirm_mirror(source_config.index, plan):
+            print("aborted: no orders submitted", file=sys.stderr)
+            return EXIT_ERROR
+
+    report = executor.execute_plan(plan, dry_run=not args.execute)
+
+    if args.json:
+        _print_json(
+            {
+                "paper_account": source_config.index,
+                "dry_run": report.dry_run,
+                "weights": weights,
+                "cash_buffer": cash_buffer,
+                "plan": plan.to_dict(),
+                "results": [r.to_dict() for r in report.results],
+            }
+        )
+        return EXIT_OK if not report.failed else EXIT_ERROR
+
+    if report.dry_run:
+        if plan.orders:
+            print("  Pass --execute to submit these orders (confirmation required).")
+    else:
+        _print_mirror_result(report)
+    return EXIT_OK if not report.failed else EXIT_ERROR
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tradingpaperaccount",
@@ -285,6 +444,43 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_rebalance.add_argument("--json", action="store_true", help="machine-readable output")
     p_rebalance.set_defaults(func=_cmd_rebalance)
+
+    p_mirror = sub.add_parser(
+        "mirror",
+        help=(
+            "apply a paper account's weights to the real trading account "
+            "(ALPACA_TRADING_*; dry-run by default)"
+        ),
+    )
+    p_mirror.add_argument(
+        "-a",
+        "--account",
+        type=int,
+        required=True,
+        choices=range(MIN_ACCOUNT_INDEX, MAX_ACCOUNT_INDEX + 1),
+        metavar=f"{{{MIN_ACCOUNT_INDEX}..{MAX_ACCOUNT_INDEX}}}",
+        help="source paper account index to mirror",
+    )
+    p_mirror.add_argument(
+        "-c",
+        "--cash-buffer",
+        type=float,
+        default=None,
+        help="fraction of trading equity to keep in cash (default: source account's cash ratio)",
+    )
+    p_mirror.add_argument(
+        "--execute",
+        action="store_true",
+        help="actually submit orders after confirmation (default is a dry run)",
+    )
+    p_mirror.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="skip the interactive confirmation prompt (positions are still printed)",
+    )
+    p_mirror.add_argument("--json", action="store_true", help="machine-readable output")
+    p_mirror.set_defaults(func=_cmd_mirror)
 
     p_fill = sub.add_parser(
         "fill-check",

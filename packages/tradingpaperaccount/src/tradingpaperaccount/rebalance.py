@@ -11,7 +11,12 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 
-from tradingpaperaccount.models import AccountState, OrderIntent, RebalancePlan
+from tradingpaperaccount.models import (
+    AccountState,
+    OrderIntent,
+    ProjectedPosition,
+    RebalancePlan,
+)
 
 DEFAULT_CASH_BUFFER = 0.05
 DEFAULT_MIN_ORDER_VALUE = 1.0
@@ -49,6 +54,48 @@ def validate_weights(weights: WeightMap) -> dict[str, float]:
     if all(v == 0 for v in cleaned.values()):
         raise RebalanceError("all target weights are zero")
     return cleaned
+
+
+def mirror_weights(account: AccountState) -> dict[str, float]:
+    """Derive relative target weights from a source account's positions.
+
+    Each symbol's weight is its signed market value as a fraction of equity, so
+    a long-only account holding 90% of its equity across positions yields
+    weights that sum to ``0.9``. ``compute_rebalance_plan`` normalises by gross
+    exposure, so combining these weights with
+    :func:`implied_cash_buffer` reproduces the source allocation on the target
+    account.
+    """
+    if account.equity <= 0:
+        raise RebalanceError(f"source account equity must be positive, got {account.equity}")
+    if not account.positions:
+        raise RebalanceError("source account has no positions to mirror")
+    weights = {
+        symbol: position.market_value / account.equity
+        for symbol, position in account.positions.items()
+    }
+    if all(value == 0 for value in weights.values()):
+        raise RebalanceError("source account has no exposure to mirror")
+    return weights
+
+
+def implied_cash_buffer(account: AccountState) -> float:
+    """Fraction of equity not invested in the source account.
+
+    Defined as ``1 - gross_exposure / equity`` (clamped to ``[0, 1)``), which is
+    the cash buffer that makes a mirror of ``account`` exact: the resulting
+    gross target equals the source's gross exposure share. For a long-only
+    account this is simply ``cash / equity``.
+    """
+    if account.equity <= 0:
+        raise RebalanceError(f"source account equity must be positive, got {account.equity}")
+    gross = sum(abs(position.market_value) for position in account.positions.values())
+    buffer = 1.0 - gross / account.equity
+    if buffer < 0:
+        return 0.0
+    if buffer >= 1:
+        raise RebalanceError("source account has no gross exposure to mirror")
+    return buffer
 
 
 def compute_rebalance_plan(
@@ -99,6 +146,7 @@ def compute_rebalance_plan(
 
     orders: list[OrderIntent] = []
     skipped: list[dict[str, object]] = []
+    projected: list[ProjectedPosition] = []
 
     for symbol in symbols:
         position = account.positions.get(symbol)
@@ -116,6 +164,7 @@ def compute_rebalance_plan(
         target_qty = target_value / price
         delta_value = target_value - current_value
         delta_qty = target_qty - current_qty
+        is_crypto = bool(position and position.is_crypto) or "/" in symbol
 
         if abs(delta_value) < min_order_value or delta_qty == 0:
             skipped.append(
@@ -127,19 +176,33 @@ def compute_rebalance_plan(
                     "target_value": target_value,
                 }
             )
-            continue
+            projected_qty = current_qty
+        else:
+            orders.append(
+                OrderIntent(
+                    symbol=symbol,
+                    side="buy" if delta_qty > 0 else "sell",
+                    qty=abs(delta_qty),
+                    notional=abs(delta_value),
+                    price=price,
+                    current_qty=current_qty,
+                    target_qty=target_qty,
+                    current_value=current_value,
+                    target_value=target_value,
+                    is_crypto=is_crypto,
+                )
+            )
+            projected_qty = target_qty
 
-        is_crypto = bool(position and position.is_crypto) or "/" in symbol
-        orders.append(
-            OrderIntent(
+        if current_qty == 0 and projected_qty == 0:
+            continue
+        projected.append(
+            ProjectedPosition(
                 symbol=symbol,
-                side="buy" if delta_qty > 0 else "sell",
-                qty=abs(delta_qty),
-                notional=abs(delta_value),
-                price=price,
                 current_qty=current_qty,
-                target_qty=target_qty,
                 current_value=current_value,
+                projected_qty=projected_qty,
+                projected_value=projected_qty * price,
                 target_value=target_value,
                 is_crypto=is_crypto,
             )
@@ -155,4 +218,5 @@ def compute_rebalance_plan(
         target_cash=account.equity * cash_buffer,
         orders=orders,
         skipped=skipped,
+        projected_positions=projected,
     )

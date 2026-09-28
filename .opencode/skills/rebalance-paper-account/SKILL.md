@@ -1,6 +1,6 @@
 ---
 name: rebalance-paper-account
-description: Use when the user wants to rebalance, allocate, or apply target weights to an Alpaca paper trading account (e.g. "rebalance my paper account", "rebalance portfolio to these weights", "apply these allocations", "set target weights", "rebalance account 2"). Drives the `tradingpaperaccount` CLI: dry-run first, then `--execute` after confirmation. Trigger keywords: rebalance, paper account, Alpaca, target weights, allocation, portfolio. Use ONLY when the user supplies (or a prior report provides) symbol→weight targets AND asks to apply them to an account; do NOT use to create accounts, pick tickers, or compute weights.
+description: Use when the user wants to rebalance, allocate, or apply target weights to an Alpaca paper trading account (e.g. "rebalance my paper account", "rebalance portfolio to these weights", "apply these allocations", "set target weights", "rebalance account 2"), or to mirror a paper account's weighting onto the real (live) Alpaca trading account (e.g. "mirror account 1 to live", "copy my paper account to my real account"). Drives the `tradingpaperaccount` CLI: dry-run first, then `--execute` after confirmation. Trigger keywords: rebalance, paper account, mirror, live account, Alpaca, target weights, allocation, portfolio. Use ONLY when the user supplies (or a prior report provides) symbol→weight targets AND asks to apply them to an account, or explicitly asks to mirror a paper account to the live account; do NOT use to create accounts, pick tickers, or compute weights.
 ---
 
 # Rebalance an Alpaca Paper Account
@@ -97,10 +97,43 @@ before executing.
 uv run tradingpaperaccount positions -a <INDEX> --json
 ```
 
+## Mirroring a paper account to the real (live) trading account
+
+This copies the **weighting** of a paper account onto the live Alpaca account
+configured under `ALPACA_TRADING_API_KEY` / `ALPACA_TRADING_SECRET_KEY`. It is
+live money, so be extra careful.
+
+1. Confirm **which paper index** is the source and that the user wants this on
+   their real account.
+2. Preview (submits nothing). This prints the live account's current positions
+   and the positions it would hold after the mirror:
+
+   ```bash
+   uv run tradingpaperaccount mirror -a <INDEX> --json
+   ```
+
+3. Show the before/after positions and every order to the user. Do NOT pass
+   `--execute` without explicit confirmation.
+4. Execute. `--execute` itself prints before/after and prompts `[y/N]` on the
+   terminal; only pass `--yes` when the user has already confirmed and the run
+   is non-interactive:
+
+   ```bash
+   uv run tradingpaperaccount mirror -a <INDEX> --execute
+   ```
+
+The target weights are derived from the paper account (`market_value /
+equity`); the cash buffer defaults to the paper account's uninvested share, so
+the live book matches the paper book. Arbitrary weights are impossible here by
+design — the live account can only mirror a paper account.
+
 ## Guardrails
 
 - Default to dry-run; only `--execute` trades. Never pass `--execute` without
-  the user's explicit go-ahead.
+  the user's explicit go-ahead. This applies doubly to `mirror`, which trades
+  real money.
+- Never run `mirror --execute` without first showing the printed before/after
+  positions and getting explicit confirmation.
 - Never handle credentials — rely on the CLI's automatic `.env` loading.
 - Never fabricate weights or instruments; source them from the user or a report.
 - Account index must be 1–3. If unsure which account, ask.
@@ -115,6 +148,7 @@ uv run tradingpaperaccount positions -a <INDEX> --json
 | `status -a N [--json]` | Balances + positions for account N. |
 | `positions -a N [--json]` | Positions for account N. |
 | `rebalance -a N -w FILE [--cash-buffer F] [--execute] [--json]` | Plan (dry run) or submit rebalancing orders. |
+| `mirror -a N [--cash-buffer F] [--execute] [--yes] [--json]` | Mirror paper account N's weights onto the live trading account (dry run by default; `--execute` prints before/after and asks `[y/N]`). |
 
 `--json` is preferred so you can parse and summarise reliably. Full details:
 `packages/tradingpaperaccount/README.md`.

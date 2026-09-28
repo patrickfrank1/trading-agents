@@ -14,10 +14,12 @@ from tradingpaperaccount.config import (
     ConfigError,
     PaperAccountConfig,
     PaperAccountSummary,
+    TradingAccountConfig,
     configured_accounts,
     list_paper_accounts,
     load_weights_file,
     resolve_account,
+    resolve_trading_account,
 )
 from tradingpaperaccount.models import (
     AccountState,
@@ -26,6 +28,7 @@ from tradingpaperaccount.models import (
     OrderIntent,
     OrderResult,
     Position,
+    ProjectedPosition,
     RebalancePlan,
 )
 from tradingpaperaccount.rebalance import (
@@ -33,6 +36,8 @@ from tradingpaperaccount.rebalance import (
     DEFAULT_MIN_ORDER_VALUE,
     RebalanceError,
     compute_rebalance_plan,
+    implied_cash_buffer,
+    mirror_weights,
     validate_weights,
 )
 
@@ -51,13 +56,18 @@ __all__ = [
     "PaperAccountConfig",
     "PaperAccountSummary",
     "Position",
+    "ProjectedPosition",
     "RebalanceError",
     "RebalancePlan",
+    "TradingAccountConfig",
     "compute_rebalance_plan",
     "configured_accounts",
     "get_positions",
+    "implied_cash_buffer",
     "list_paper_accounts",
     "load_weights_file",
+    "mirror_weights",
     "resolve_account",
+    "resolve_trading_account",
     "validate_weights",
 ]
