@@ -31,7 +31,7 @@ uv run pytest -m smoke             # sanity checks
 uv run pytest packages/tradingagents/tests/test_model_validation.py  # single file
 
 # smoke test structured-output against a real provider (costs tokens)
-OPENAI_API_KEY=... uv run python packages/tradingagents/scripts/smoke_structured_output.py openai
+OPENAI_API_KEY=... uv run python packages/tradingagents/scripts/smoke_structured_output.py openai  # allow: key
 
 # docker (run from the repo root; compose lives with the package)
 docker compose -f packages/tradingagents/docker-compose.yml run --rm tradingagents
@@ -50,7 +50,7 @@ bin/check_fills.sh 1 2                                        # post-open fill c
 ```
 
 Live trading: `mirror` copies a paper account's weights onto the real account
-configured under `ALPACA_TRADING_API_KEY` / `ALPACA_TRADING_SECRET_KEY` (always
+configured under `ALPACA_TRADING_API_KEY` / `ALPACA_TRADING_SECRET_KEY` (always <!-- # allow: key -->
 live). It prints the current and post-rebalance positions before any trade and
 requires `--execute` plus `[y/N]` confirmation (`--yes` skips the prompt for
 automation):
@@ -58,6 +58,19 @@ automation):
 ```bash
 uv run tradingpaperaccount mirror -a 2                        # preview (no orders)
 uv run tradingpaperaccount mirror -a 2 --execute             # confirm at the prompt
+```
+
+## Git hooks
+
+A versioned pre-commit hook (`.githooks/pre-commit`) blocks committing API
+credentials. Its hardcoded name list covers every variable in `.env.example`
+(LLM providers plus the Alpaca accounts). Real secret values (read from the
+environment and the repo's `.env` / `.env.enterprise`) always fail, while the
+variable names fail unless the line carries a `# allow: key` annotation.
+Enable it per clone with:
+
+```bash
+git config core.hooksPath .githooks
 ```
 
 ## opencode agents / commands

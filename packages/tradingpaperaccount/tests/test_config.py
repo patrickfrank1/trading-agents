@@ -12,7 +12,7 @@ from tradingpaperaccount.config import (
 
 
 def test_resolve_numbered_account():
-    env = {"ALPACA_PAPER_API_KEY_2": "k2", "ALPACA_PAPER_SECRET_KEY_2": "s2"}
+    env = {"ALPACA_PAPER_API_KEY_2": "k2", "ALPACA_PAPER_SECRET_KEY_2": "s2"}  # allow: key
     config = resolve_account(2, env)
     assert (config.index, config.api_key, config.secret_key) == (2, "k2", "s2")
 
@@ -25,8 +25,8 @@ def test_account_one_falls_back_to_unnumbered():
 
 def test_numbered_takes_priority_over_unnumbered():
     env = {
-        "ALPACA_PAPER_API_KEY_1": "paper",
-        "ALPACA_PAPER_SECRET_KEY_1": "paper-secret",
+        "ALPACA_PAPER_API_KEY_1": "paper",  # allow: key
+        "ALPACA_PAPER_SECRET_KEY_1": "paper-secret",  # allow: key
         "ALPACA_API_KEY": "generic",
         "ALPACA_SECRET_KEY": "generic-secret",
     }
@@ -46,10 +46,10 @@ def test_index_out_of_range_raises():
 
 def test_configured_accounts():
     env = {
-        "ALPACA_PAPER_API_KEY_1": "k1",
-        "ALPACA_PAPER_SECRET_KEY_1": "s1",
-        "ALPACA_PAPER_API_KEY_3": "k3",
-        "ALPACA_PAPER_SECRET_KEY_3": "s3",
+        "ALPACA_PAPER_API_KEY_1": "k1",  # allow: key
+        "ALPACA_PAPER_SECRET_KEY_1": "s1",  # allow: key
+        "ALPACA_PAPER_API_KEY_3": "k3",  # allow: key
+        "ALPACA_PAPER_SECRET_KEY_3": "s3",  # allow: key
     }
     assert configured_accounts(env) == [1, 3]
 
@@ -80,7 +80,7 @@ def test_repr_hides_secret():
 
 
 def test_resolve_trading_account_is_live():
-    env = {"ALPACA_TRADING_API_KEY": "tk", "ALPACA_TRADING_SECRET_KEY": "ts"}
+    env = {"ALPACA_TRADING_API_KEY": "tk", "ALPACA_TRADING_SECRET_KEY": "ts"}  # allow: key
     config = resolve_trading_account(env)
     assert (config.api_key, config.secret_key) == ("tk", "ts")
     assert config.paper is False
@@ -93,6 +93,6 @@ def test_resolve_trading_account_missing_raises():
 
 def test_trading_repr_hides_secret():
     config = resolve_trading_account(
-        {"ALPACA_TRADING_API_KEY": "k", "ALPACA_TRADING_SECRET_KEY": "supersecret"}
+        {"ALPACA_TRADING_API_KEY": "k", "ALPACA_TRADING_SECRET_KEY": "supersecret"}  # allow: key
     )
     assert "supersecret" not in repr(config)

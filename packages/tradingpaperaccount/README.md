@@ -52,10 +52,10 @@ Credentials are read from the environment. The CLI loads the repo's `.env` and
 mapping via the `env=` argument. See the root `.env.example`.
 
 ```
-account 1: ALPACA_PAPER_API_KEY_1 / ALPACA_PAPER_SECRET_KEY_1
+account 1: ALPACA_PAPER_API_KEY_1 / ALPACA_PAPER_SECRET_KEY_1  # allow: key
            (fallback: ALPACA_API_KEY / ALPACA_SECRET_KEY)
-account 2: ALPACA_PAPER_API_KEY_2 / ALPACA_PAPER_SECRET_KEY_2
-account 3: ALPACA_PAPER_API_KEY_3 / ALPACA_PAPER_SECRET_KEY_3
+account 2: ALPACA_PAPER_API_KEY_2 / ALPACA_PAPER_SECRET_KEY_2  # allow: key
+account 3: ALPACA_PAPER_API_KEY_3 / ALPACA_PAPER_SECRET_KEY_3  # allow: key
 ```
 
 `ALPACA_API_KEY_<n>` / `ALPACA_SECRET_KEY_<n>` are also accepted.
@@ -63,7 +63,7 @@ account 3: ALPACA_PAPER_API_KEY_3 / ALPACA_PAPER_SECRET_KEY_3
 The real (live) trading account for `mirror` is separate and always live:
 
 ```
-trading:  ALPACA_TRADING_API_KEY / ALPACA_TRADING_SECRET_KEY
+trading:  ALPACA_TRADING_API_KEY / ALPACA_TRADING_SECRET_KEY  # allow: key
 ```
 
 ## Weights file
@@ -133,8 +133,8 @@ bin/rebalance_after_fill.sh <account> <weights.json> [timeout_minutes]
 ## Mirroring a paper account into the real trading account
 
 `mirror` copies the **weighting** of a paper account onto the real (live)
-Alpaca trading account configured under `ALPACA_TRADING_API_KEY` /
-`ALPACA_TRADING_SECRET_KEY`. It is the only command that touches the live
+Alpaca trading account configured under `ALPACA_TRADING_API_KEY` / <!-- # allow: key -->
+`ALPACA_TRADING_SECRET_KEY`. It is the only command that touches the live <!-- # allow: key -->
 account, and it cannot be given arbitrary weights: the paper account is always
 the source, so the live book can only ever reflect a book you already ran on
 paper.

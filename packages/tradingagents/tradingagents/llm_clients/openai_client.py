@@ -104,11 +104,11 @@ _THINKING_TOOL_CHOICE_HOSTS = ("api.deepseek.com", "api.z.ai", "dashscope")
 
 # Provider base URLs and API key env vars
 _PROVIDER_CONFIG = {
-    "xai": ("https://api.x.ai/v1", "XAI_API_KEY"),
-    "deepseek": ("https://api.deepseek.com", "DEEPSEEK_API_KEY"),
-    "qwen": ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "DASHSCOPE_API_KEY"),
-    "glm": ("https://api.z.ai/api/paas/v4/", "ZHIPU_API_KEY"),
-    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
+    "xai": ("https://api.x.ai/v1", "XAI_API_KEY"),  # allow: key
+    "deepseek": ("https://api.deepseek.com", "DEEPSEEK_API_KEY"),  # allow: key
+    "qwen": ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "DASHSCOPE_API_KEY"),  # allow: key
+    "glm": ("https://api.z.ai/api/paas/v4/", "ZHIPU_API_KEY"),  # allow: key
+    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),  # allow: key
     "ollama": ("http://localhost:11434/v1", None),
 }
 

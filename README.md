@@ -137,14 +137,14 @@ docker compose -f packages/tradingagents/docker-compose.yml --profile ollama run
 TradingAgents supports multiple LLM providers. Set the API key for your chosen provider:
 
 ```bash
-export OPENAI_API_KEY=...          # OpenAI (GPT)
-export GOOGLE_API_KEY=...          # Google (Gemini)
-export ANTHROPIC_API_KEY=...       # Anthropic (Claude)
-export XAI_API_KEY=...             # xAI (Grok)
-export DEEPSEEK_API_KEY=...        # DeepSeek
-export DASHSCOPE_API_KEY=...       # Qwen (Alibaba DashScope)
-export ZHIPU_API_KEY=...           # GLM (Zhipu)
-export OPENROUTER_API_KEY=...      # OpenRouter
+export OPENAI_API_KEY=...          # OpenAI (GPT) # allow: key
+export GOOGLE_API_KEY=...          # Google (Gemini) # allow: key
+export ANTHROPIC_API_KEY=...       # Anthropic (Claude) # allow: key
+export XAI_API_KEY=...             # xAI (Grok) # allow: key
+export DEEPSEEK_API_KEY=...        # DeepSeek # allow: key
+export DASHSCOPE_API_KEY=...       # Qwen (Alibaba DashScope) # allow: key
+export ZHIPU_API_KEY=...           # GLM (Zhipu) # allow: key
+export OPENROUTER_API_KEY=...      # OpenRouter # allow: key
 export ALPHA_VANTAGE_API_KEY=...   # Alpha Vantage
 ```
 

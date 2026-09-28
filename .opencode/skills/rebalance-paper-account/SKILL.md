@@ -100,7 +100,7 @@ uv run tradingpaperaccount positions -a <INDEX> --json
 ## Mirroring a paper account to the real (live) trading account
 
 This copies the **weighting** of a paper account onto the live Alpaca account
-configured under `ALPACA_TRADING_API_KEY` / `ALPACA_TRADING_SECRET_KEY`. It is
+configured under `ALPACA_TRADING_API_KEY` / `ALPACA_TRADING_SECRET_KEY`. It is <!-- # allow: key -->
 live money, so be extra careful.
 
 1. Confirm **which paper index** is the source and that the user wants this on

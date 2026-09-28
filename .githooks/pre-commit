@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""Pre-commit guard against committing API credentials.
+
+The credential variable names below are hardcoded (mirroring the variables
+listed in ``.env.example``); the hook never reads that file.
+
+Two independent checks run against the staged snapshot:
+
+1. Secret *values* (read from the environment and the repo's ``.env`` /
+   ``.env.enterprise`` files) must never appear in any staged file. This
+   failure cannot be overridden.
+2. The credential *variable names* must not appear in any staged file either,
+   unless the offending line carries a ``# allow: key`` annotation.
+
+Exit status is non-zero (blocking the commit) when a violation is found.
+"""
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+SENSITIVE_NAMES = (
+    # LLM providers
+    "OPENAI_API_KEY",  # allow: key
+    "GOOGLE_API_KEY",  # allow: key
+    "ANTHROPIC_API_KEY",  # allow: key
+    "XAI_API_KEY",  # allow: key
+    "DEEPSEEK_API_KEY",  # allow: key
+    "DASHSCOPE_API_KEY",  # allow: key
+    "ZHIPU_API_KEY",  # allow: key
+    "OPENROUTER_API_KEY",  # allow: key
+    # Alpaca paper accounts
+    "ALPACA_PAPER_API_KEY_1",  # allow: key
+    "ALPACA_PAPER_API_KEY_2",  # allow: key
+    "ALPACA_PAPER_API_KEY_3",  # allow: key
+    "ALPACA_PAPER_SECRET_KEY_1",  # allow: key
+    "ALPACA_PAPER_SECRET_KEY_2",  # allow: key
+    "ALPACA_PAPER_SECRET_KEY_3",  # allow: key
+    # Alpaca real (live) account
+    "ALPACA_TRADING_API_KEY",  # allow: key
+    "ALPACA_TRADING_SECRET_KEY",  # allow: key
+)
+
+ALLOW_RE = re.compile(r"#\s*allow:\s*key\b")
+# Match whole identifiers only, so a longer variable name that merely ends with
+# one of the listed names is not mistaken for it.
+NAME_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(" + "|".join(re.escape(name) for name in SENSITIVE_NAMES) + r")(?![A-Za-z0-9_])"
+)
+MIN_SECRET_LENGTH = 8
+ENV_FILES = (".env", ".env.enterprise")
+
+
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+
+def repo_root() -> Path:
+    result = _git(Path.cwd(), "rev-parse", "--show-toplevel")
+    if result.returncode != 0:
+        raise SystemExit("pre-commit: not inside a git repository")
+    return Path(result.stdout.decode().strip())
+
+
+def _parse_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return values
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if key.startswith("export "):
+            key = key[len("export ") :].strip()
+        values[key] = value.strip().strip('"').strip("'").strip()
+    return values
+
+
+def load_secret_values(root: Path) -> list[str]:
+    """Collect real secret values from the environment and dotenv files."""
+    values: set[str] = set()
+    for name in SENSITIVE_NAMES:
+        env_value = os.environ.get(name, "").strip()
+        if env_value:
+            values.add(env_value)
+    for filename in ENV_FILES:
+        parsed = _parse_env_file(root / filename)
+        for name in SENSITIVE_NAMES:
+            value = parsed.get(name, "")
+            if value:
+                values.add(value)
+    # Guard against pathological short values matching everything.
+    return sorted(value for value in values if len(value) >= MIN_SECRET_LENGTH)
+
+
+def staged_files(root: Path) -> list[str]:
+    result = _git(root, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z")
+    if result.returncode != 0:
+        raise SystemExit("pre-commit: git diff --cached failed")
+    return [p.decode("utf-8", "replace") for p in result.stdout.split(b"\0") if p]
+
+
+def staged_content(root: Path, path: str) -> bytes | None:
+    result = _git(root, "show", f":{path}")
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def scan(root: Path, secrets: list[str]) -> list[tuple[str, str, int, str]]:
+    violations: list[tuple[str, str, int, str]] = []
+    for path in staged_files(root):
+        data = staged_content(root, path)
+        if data is None or b"\0" in data:
+            continue
+        text = data.decode("utf-8", "replace")
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if any(secret in line for secret in secrets):
+                violations.append(("secret", path, lineno, line))
+                continue
+            if NAME_RE.search(line) and not ALLOW_RE.search(line):
+                violations.append(("name", path, lineno, line))
+    return violations
+
+
+def main() -> int:
+    root = repo_root()
+    secrets = load_secret_values(root)
+    violations = scan(root, secrets)
+    if not violations:
+        return 0
+
+    secret_files = sorted({p for kind, p, _, _ in violations if kind == "secret"})
+    name_files = sorted({p for kind, p, _, _ in violations if kind == "name"})
+
+    print("pre-commit: commit blocked - API credentials detected.", file=sys.stderr)
+    if secret_files:
+        print(
+            "\n  Secret VALUES from .env / environment found in: " + ", ".join(secret_files),
+            file=sys.stderr,
+        )
+        print(
+            "  This cannot be overridden. Remove the value and rotate the key.",
+            file=sys.stderr,
+        )
+    if name_files:
+        print(
+            "\n  Credential variable NAMES found in: " + ", ".join(name_files),
+            file=sys.stderr,
+        )
+        print(
+            "  Add an inline '# allow: key' annotation when the mention is"
+            " intentional.",
+            file=sys.stderr,
+        )
+    print("\n  Offending lines:", file=sys.stderr)
+    for kind, path, lineno, line in violations:
+        label = "SECRET" if kind == "secret" else "NAME  "
+        print(f"    {label} {path}:{lineno}: {line.strip()[:160]}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

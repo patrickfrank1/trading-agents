@@ -16,7 +16,7 @@ def factory(api_key, secret_key, paper):
     return FakeClient(api_key, secret_key, paper)
 
 
-ENV = {"ALPACA_PAPER_API_KEY_1": "key-abc1", "ALPACA_PAPER_SECRET_KEY_1": "secret1"}
+ENV = {"ALPACA_PAPER_API_KEY_1": "key-abc1", "ALPACA_PAPER_SECRET_KEY_1": "secret1"}  # allow: key
 
 
 def test_get_positions():
@@ -27,8 +27,8 @@ def test_get_positions():
 def test_list_paper_accounts_reads_env():
     env = {
         **ENV,
-        "ALPACA_PAPER_API_KEY_3": "key-abc3",
-        "ALPACA_PAPER_SECRET_KEY_3": "secret3",
+        "ALPACA_PAPER_API_KEY_3": "key-abc3",  # allow: key
+        "ALPACA_PAPER_SECRET_KEY_3": "secret3",  # allow: key
     }
     summaries = {s.index: s for s in list_paper_accounts(env)}
     assert set(summaries) == {1, 3}

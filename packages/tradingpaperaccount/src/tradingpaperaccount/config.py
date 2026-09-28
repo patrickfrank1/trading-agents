@@ -4,15 +4,15 @@ Up to three paper accounts are supported, indexed ``1..3``. Credentials are
 resolved from environment variables, with account 1 falling back to the
 unnumbered names so a single-account setup keeps working:
 
-    account 1: ALPACA_PAPER_API_KEY_1 / ALPACA_PAPER_SECRET_KEY_1
+    account 1: ALPACA_PAPER_API_KEY_1 / ALPACA_PAPER_SECRET_KEY_1  # allow: key
                (fallback ALPACA_API_KEY / ALPACA_SECRET_KEY)
-    account 2: ALPACA_PAPER_API_KEY_2 / ALPACA_PAPER_SECRET_KEY_2
-    account 3: ALPACA_PAPER_API_KEY_3 / ALPACA_PAPER_SECRET_KEY_3
+    account 2: ALPACA_PAPER_API_KEY_2 / ALPACA_PAPER_SECRET_KEY_2  # allow: key
+    account 3: ALPACA_PAPER_API_KEY_3 / ALPACA_PAPER_SECRET_KEY_3  # allow: key
 
 ``ALPACA_API_KEY_<n>`` / ``ALPACA_SECRET_KEY_<n>`` are also accepted.
 
 The real (live) trading account is configured separately under
-``ALPACA_TRADING_API_KEY`` / ``ALPACA_TRADING_SECRET_KEY`` and is only ever
+``ALPACA_TRADING_API_KEY`` / ``ALPACA_TRADING_SECRET_KEY`` and is only ever  # allow: key
 used to mirror a paper account's weights (see the ``mirror`` CLI command).
 
 Alpaca has no API to create paper accounts; create them in the dashboard and
@@ -31,8 +31,8 @@ from typing import Any
 MIN_ACCOUNT_INDEX = 1
 MAX_ACCOUNT_INDEX = 3
 
-TRADING_API_KEY_ENV = "ALPACA_TRADING_API_KEY"
-TRADING_SECRET_KEY_ENV = "ALPACA_TRADING_SECRET_KEY"
+TRADING_API_KEY_ENV = "ALPACA_TRADING_API_KEY"  # allow: key
+TRADING_SECRET_KEY_ENV = "ALPACA_TRADING_SECRET_KEY"  # allow: key
 
 
 class ConfigError(ValueError):
@@ -153,7 +153,7 @@ def resolve_trading_account(
 ) -> TradingAccountConfig:
     """Resolve the real trading account credentials from the environment.
 
-    Reads ``ALPACA_TRADING_API_KEY`` / ``ALPACA_TRADING_SECRET_KEY``. The
+    Reads ``ALPACA_TRADING_API_KEY`` / ``ALPACA_TRADING_SECRET_KEY``. The  # allow: key
     returned config is always live (``paper=False``).
     """
     env = env if env is not None else os.environ

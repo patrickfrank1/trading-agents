@@ -12,14 +12,14 @@ def pytest_configure(config):
 
 
 _API_KEY_ENV_VARS = (
-    "OPENAI_API_KEY",
-    "GOOGLE_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "XAI_API_KEY",
-    "DEEPSEEK_API_KEY",
-    "DASHSCOPE_API_KEY",
-    "ZHIPU_API_KEY",
-    "OPENROUTER_API_KEY",
+    "OPENAI_API_KEY",  # allow: key
+    "GOOGLE_API_KEY",  # allow: key
+    "ANTHROPIC_API_KEY",  # allow: key
+    "XAI_API_KEY",  # allow: key
+    "DEEPSEEK_API_KEY",  # allow: key
+    "DASHSCOPE_API_KEY",  # allow: key
+    "ZHIPU_API_KEY",  # allow: key
+    "OPENROUTER_API_KEY",  # allow: key
     "AZURE_OPENAI_API_KEY",
     "ALPHA_VANTAGE_API_KEY",
 )

@@ -50,14 +50,14 @@ def fake_alpaca(monkeypatch):
     monkeypatch.setattr(client_mod, "AlpacaPaperClient", FakeAlpacaClient)
     monkeypatch.setenv("ALPACA_API_KEY", "k")
     monkeypatch.setenv("ALPACA_SECRET_KEY", "s")
-    monkeypatch.setenv("ALPACA_PAPER_API_KEY_2", "k2")
-    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY_2", "s2")
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY_2", "k2")  # allow: key
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY_2", "s2")  # allow: key
     return FakeAlpacaClient
 
 
 def test_accounts_lists_configured(monkeypatch, capsys):
-    monkeypatch.setenv("ALPACA_PAPER_API_KEY_2", "k2")
-    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY_2", "s2")
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY_2", "k2")  # allow: key
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY_2", "s2")  # allow: key
     monkeypatch.delenv("ALPACA_API_KEY", raising=False)
     monkeypatch.delenv("ALPACA_SECRET_KEY", raising=False)
 
@@ -130,8 +130,8 @@ def test_fill_check_all_filled(fake_alpaca, capsys):
 
 
 def test_missing_credentials_returns_error(monkeypatch):
-    for key in ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "ALPACA_PAPER_API_KEY_1",
-                "ALPACA_PAPER_SECRET_KEY_1"):
+    for key in ("ALPACA_API_KEY", "ALPACA_SECRET_KEY", "ALPACA_PAPER_API_KEY_1",  # allow: key
+                "ALPACA_PAPER_SECRET_KEY_1"):  # allow: key
         monkeypatch.delenv(key, raising=False)
     rc = cli.main(["status", "--account", "1"])
     assert rc == 1
@@ -184,8 +184,8 @@ def fake_mirror(monkeypatch):
     FakeMirrorClient.submitted = []
     monkeypatch.setenv("ALPACA_API_KEY", "paper-key")
     monkeypatch.setenv("ALPACA_SECRET_KEY", "paper-secret")
-    monkeypatch.setenv("ALPACA_TRADING_API_KEY", "trade-key")
-    monkeypatch.setenv("ALPACA_TRADING_SECRET_KEY", "trade-secret")
+    monkeypatch.setenv("ALPACA_TRADING_API_KEY", "trade-key")  # allow: key
+    monkeypatch.setenv("ALPACA_TRADING_SECRET_KEY", "trade-secret")  # allow: key
     return FakeMirrorClient
 
 
@@ -244,7 +244,7 @@ def test_mirror_execute_reports_submitted(fake_mirror, capsys):
 
 
 def test_mirror_missing_trading_credentials(fake_mirror, monkeypatch):
-    monkeypatch.delenv("ALPACA_TRADING_API_KEY", raising=False)
-    monkeypatch.delenv("ALPACA_TRADING_SECRET_KEY", raising=False)
+    monkeypatch.delenv("ALPACA_TRADING_API_KEY", raising=False)  # allow: key
+    monkeypatch.delenv("ALPACA_TRADING_SECRET_KEY", raising=False)  # allow: key
     rc = cli.main(["mirror", "-a", "1"])
     assert rc == 1
