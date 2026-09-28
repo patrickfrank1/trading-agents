@@ -48,6 +48,15 @@ You run unattended under cron. Make reasonable decisions yourself, log them, and
 Run all commands from the repository root. Acquire `.state/run.lock` (write your
 PID); abort if a live PID already holds it.
 
+## Dry-run mode
+
+If the environment variable `ALLOCATOR_DRY_RUN` is `1`, do **not** generate any
+report. In the daily procedure perform steps 1–4 and 7 only (load state,
+reconcile existing coverage, build the candidate pool, run the cheap screen,
+snapshot accounts). Print the exact `uv run tradingagents analyze` command you
+*would* run for the winning candidate and stop. Do not write `researched` status
+or run `tradingagents`.
+
 ## State model
 
 `.state/universe.json` maps ticker → record:
@@ -78,34 +87,39 @@ events.
 ## Daily procedure
 
 1. Load state and lock.
-2. Build the candidate pool from `watch` entries, user screeners, ETF top
+2. **Reconcile existing coverage.** Scan `reports/` (including `archive/`,
+   `batch_*`, `run_*`, `sent/` groupings) for `TICKER_YYYYMMDD_HHMMSS` dirs. For
+   every ticker found, register it in `universe.json` as `researched` (or update
+   an existing entry to `researched`) with its `report_path`. These are already
+   covered and are never daily candidates.
+3. Build the candidate pool from `watch` entries, user screeners, ETF top
    holdings, and news. **Exclude** any ticker whose status is `researched`,
    `needs_update`, or `held` — daily research only chases genuinely new ideas.
    Stale-report refreshes are triggered by the user, out of band, and are never
    daily candidates. Aim to explore a broad universe: global equities/ADRs,
    REITs, ETFs (sector/country/commodity/bond), crypto.
-3. **Cheap heuristic screen only** — do not overanalyze. For each candidate
+4. **Cheap heuristic screen only** — do not overanalyze. For each candidate
    gather forward P/E, P/B, EV/EBITDA, net-debt/EBITDA, FCF yield, ROIC, margin
    trend, average dollar volume, and market cap. Reject glaring red flags per
    `policy.json` (`screen_red_flags`) and record `reject_reason`.
-4. Pick the single most promising survivor. Run the full pipeline:
+5. Pick the single most promising survivor. Run the full pipeline:
    ```bash
    uv run tradingagents analyze --non-interactive -t <TICKER> -d <YYYY-MM-DD> --display-report
    ```
    Use today's date and the analyst set appropriate to the asset. If the run
    fails or data is missing, fall back to the next candidate (max 3 attempts)
    and log each fallback.
-5. Persist the report path, write `ideas/<TICKER>.json`, and set status
+6. Persist the report path, write `ideas/<TICKER>.json`, and set status
    `researched`.
-6. Snapshot accounts 1–3 for the record:
+7. Snapshot accounts 1–3 for the record (`positions` and `performance` for each):
    ```bash
-   uv run tradingpaperaccount positions -a 1 --json
-   uv run tradingpaperaccount positions -a 2 --json
-   uv run tradingpaperaccount positions -a 3 --json
-   uv run tradingpaperaccount performance -a 1 --period 1M --json
+   for a in 1 2 3; do
+     uv run tradingpaperaccount positions -a "$a" --json
+     uv run tradingpaperaccount performance -a "$a" --period 1M --json
+   done
    ```
-   Append the day's JSON to `.state/snapshots/<account>.jsonl`.
-7. Release the lock. If no candidate clears the screen, log "no idea today" and
+   Append each day's JSON to `.state/snapshots/<account>.jsonl`.
+8. Release the lock. If no candidate clears the screen, log "no idea today" and
    exit cleanly.
 
 ## Monthly procedure (first trading day of the month)
